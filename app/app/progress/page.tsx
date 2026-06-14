@@ -55,6 +55,7 @@ export default async function ProgressPage() {
   }
 
   if (!clerkUserId) redirect(`/?next=${encodeURIComponent("/app/progress")}`);
+  const resolvedClerkUserId = clerkUserId;
 
   let userRecord: {
     id: string;
@@ -77,7 +78,7 @@ export default async function ProgressPage() {
 
   async function loadUserRecord(includeStudentState: boolean) {
     return prisma.user.findFirst({
-      where: { clerkUserId },
+      where: { clerkUserId: resolvedClerkUserId },
       select: includeStudentState
         ? {
             id: true,
@@ -110,7 +111,7 @@ export default async function ProgressPage() {
 
   if (!userRecord && !studentStateUnavailable) {
     await prisma.user.create({
-      data: { clerkUserId },
+      data: { clerkUserId: resolvedClerkUserId },
     }).catch((error) => {
       console.error("[Progress] Database error creating user:", error);
     });
@@ -185,7 +186,7 @@ export default async function ProgressPage() {
       },
     });
   } catch (error: unknown) {
-    const message = String(error?.message || "");
+    const message = String((error as { message?: string } | null)?.message || "");
     reasoningRunsUnavailable = /ReasoningRun|relation .* does not exist|table .* does not exist/i.test(message);
     if (!reasoningRunsUnavailable) {
       console.error("[Progress] Failed to load reasoning runs:", error);
@@ -241,18 +242,18 @@ export default async function ProgressPage() {
     <main className="mx-auto max-w-6xl space-y-8 px-6 py-8">
       <section className="flex flex-col gap-4 rounded-3xl border border-gray-200 bg-gradient-to-r from-sky-50 via-white to-emerald-50 p-8 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-3xl space-y-3">
-          <p className="text-sm font-medium uppercase tracking-[0.18em] text-sky-700">Workspace progress read</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-gray-950 sm:text-4xl">How Mate-E reads your current momentum</h1>
+          <p className="text-sm font-medium uppercase tracking-[0.18em] text-sky-700">Execute</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-gray-950 sm:text-4xl">Continuity, insights, and next actions in one read</h1>
           <p className="text-base leading-7 text-gray-600">
-            This space should feel like a readable interpretation of your last few work blocks, not a dashboard reporting numbers. The goal is to show what is settling, what still needs reinforcement, and where the next focused pass should begin.
+            This should feel like the execution layer for Mate-E, not a dashboard. Reopen the product, see what changed, what is unstable, and what deserves your next deliberate pass.
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Link href="/app" className="rounded-full border border-gray-300 bg-white px-5 py-3 text-sm font-medium text-gray-900 hover:bg-gray-50">
-            Back to workspace home
+          <Link href="/app/workspace" className="rounded-full border border-gray-300 bg-white px-5 py-3 text-sm font-medium text-gray-900 hover:bg-gray-50">
+            Back to Execute
           </Link>
-          <Link href="/how-adaptive-guidance-works" className="rounded-full bg-gray-950 px-5 py-3 text-sm font-medium text-white hover:bg-gray-800">
-            Review adaptive guidance
+          <Link href="/app/workspace?workspaceMode=instructional-chat" className="rounded-full bg-gray-950 px-5 py-3 text-sm font-medium text-white hover:bg-gray-800">
+            Open workspace chat
           </Link>
         </div>
       </section>
@@ -266,7 +267,7 @@ export default async function ProgressPage() {
 
       <section className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="rounded-3xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-cyan-50 p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">Workspace read</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">Continuity read</p>
           <h2 className="mt-3 text-2xl font-semibold tracking-tight text-gray-950">{tutorBrief.headline}</h2>
           <p className="mt-3 text-sm leading-7 text-gray-700">{tutorBrief.body}</p>
           <div className="mt-5 grid gap-3 md:grid-cols-3">
@@ -279,7 +280,7 @@ export default async function ProgressPage() {
         </div>
 
         <div className="rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-lime-50 p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Learning narrative</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Next actions</p>
           <h2 className="mt-3 text-2xl font-semibold tracking-tight text-gray-950">{progressNarrative.headline}</h2>
           <p className="mt-3 text-sm leading-7 text-gray-700">{progressNarrative.summary}</p>
           <div className="mt-5 space-y-3">
@@ -292,7 +293,7 @@ export default async function ProgressPage() {
               <p className="mt-2">{progressNarrative.stillUnstable}</p>
             </div>
             <div className="rounded-2xl border border-sky-100 bg-white/90 p-4 text-sm leading-6 text-gray-700">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-700">Suggested next pass</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-700">Suggested next move</p>
               <p className="mt-2">{progressNarrative.nextStep}</p>
               {progressResumeHref ? (
                 <div className="mt-4">
@@ -310,19 +311,19 @@ export default async function ProgressPage() {
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Current focus streak" value={`${userRecord.studyStreak} day${userRecord.studyStreak === 1 ? "" : "s"}`} detail="Consistency matters more than raw session length." tone="sky" />
-        <MetricCard label="Today's focus goal" value={`${xpToday}/${userRecord.dailyGoal} XP`} detail={xpToday >= userRecord.dailyGoal ? "Daily goal reached." : `${Math.max(0, userRecord.dailyGoal - xpToday)} XP to go today.`} tone="emerald" />
-        <MetricCard label="Verification success" value={`${Math.round((studentState?.retentionProfile.recentVerificationSuccessRate ?? 0) * 100)}%`} detail={`${studentState?.retentionProfile.successfulChecks ?? 0} successful checks across recent workspace history.`} tone="amber" />
-        <MetricCard label="Recent guidance runs" value={String(analytics?.totalRuns ?? 0)} detail={`${analytics?.verificationRuns ?? 0} runs included verification support.`} tone="violet" />
+        <MetricCard label="Continuity" value={`${userRecord.studyStreak} day${userRecord.studyStreak === 1 ? "" : "s"}`} detail="Consistent return loops matter more than raw session length." tone="sky" />
+        <MetricCard label="Today's activity load" value={`${xpToday}/${userRecord.dailyGoal}`} detail={xpToday >= userRecord.dailyGoal ? "Today's activity target reached." : `${Math.max(0, userRecord.dailyGoal - xpToday)} actions left in today's target window.`} tone="emerald" />
+        <MetricCard label="Insight confidence" value={`${Math.round((studentState?.retentionProfile.recentVerificationSuccessRate ?? 0) * 100)}%`} detail={`${studentState?.retentionProfile.successfulChecks ?? 0} successful checks across recent workspace history.`} tone="amber" />
+        <MetricCard label="Recent signals" value={String(analytics?.totalRuns ?? 0)} detail={`${analytics?.verificationRuns ?? 0} runs included verification support.`} tone="violet" />
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
         <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 className="text-xl font-semibold text-gray-950">Confidence trend</h2>
+              <h2 className="text-xl font-semibold text-gray-950">Execution confidence</h2>
               <p className="mt-2 text-sm leading-6 text-gray-600">
-                Recent guidance and verification confidence over the last few sessions. This helps show whether understanding is stabilizing.
+                Recent analysis and verification confidence over the last few sessions. This helps show whether the active thread is stabilizing.
               </p>
             </div>
             <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-700">
@@ -331,7 +332,7 @@ export default async function ProgressPage() {
           </div>
 
           {confidenceSeries.length === 0 ? (
-            <EmptyInlineState body="Start studying to populate your confidence trend." />
+            <EmptyInlineState body="Start using the workspace to populate your confidence trend." />
           ) : (
             <div className="mt-6 flex items-end gap-3">
               {confidenceSeries.map((point) => (
@@ -350,7 +351,7 @@ export default async function ProgressPage() {
         </div>
 
         <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-gray-950">Recommended next topics</h2>
+          <h2 className="text-xl font-semibold text-gray-950">Next actions</h2>
           <p className="mt-2 text-sm leading-6 text-gray-600">
             These are bounded, visible next-step suggestions based on your recent weak concepts, misconceptions, work outcomes, and active workspace thread. They preserve continuity without taking control of your flow.
           </p>
@@ -389,12 +390,12 @@ export default async function ProgressPage() {
         <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm xl:col-span-2">
           <h2 className="text-xl font-semibold text-gray-950">Misconception patterns</h2>
           <p className="mt-2 text-sm leading-6 text-gray-600">
-            These are the learning patterns the system is watching so guidance can reinforce the right next step.
+            These are the reasoning patterns the system is watching so guidance can reinforce the right next step.
           </p>
           <div className="mt-5 grid gap-4 md:grid-cols-2">
             {misconceptionCards.length === 0 ? (
               <div className="md:col-span-2">
-                <EmptyInlineState body="Misconception patterns will appear after you complete more guided study or answer verification sessions." />
+                <EmptyInlineState body="Misconception patterns will appear after you complete more guided workspace or answer verification sessions." />
               </div>
             ) : (
               misconceptionCards.map((item) => (
@@ -411,7 +412,7 @@ export default async function ProgressPage() {
         </div>
 
         <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-gray-950">Study cadence</h2>
+          <h2 className="text-xl font-semibold text-gray-950">Workspace cadence</h2>
           <p className="mt-2 text-sm leading-6 text-gray-600">
             A lightweight view of consistency and pacing, so you can see whether effort is becoming steadier over time.
           </p>
@@ -486,7 +487,7 @@ export default async function ProgressPage() {
           ) : null}
           <div className="mt-5 space-y-4">
             {recoveryTimeline.length === 0 ? (
-              <EmptyInlineState body="Recovery events will appear here after more guided reviews are recorded." />
+              <EmptyInlineState body="Recovery events will appear here after more guided workspace runs are recorded." />
             ) : (
               recoveryTimeline.map((event) => (
                 <article key={event.id} className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
@@ -747,7 +748,7 @@ function buildProgressNarrative(
   studentState: ReturnType<typeof formatStudentState> | null,
   analytics: ReturnType<typeof summarizeReasoningRuns> | null,
   recoverySummary: string | null,
-  recommendedTopics: Array<{ title: string; reason: string }>
+  recommendedTopics: Array<{ title: string; reason: string; href?: string | null; actionLabel?: string }>
 ) {
   const weakConcept = studentState?.weakConcepts[0];
   const recentFailure = studentState?.recentFailures[0];

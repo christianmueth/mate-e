@@ -240,7 +240,7 @@ type GovernanceReport = {
 
 const MODE_OPTIONS = [
   { label: "All runs", value: "" },
-  { label: "Flashcards", value: "flashcards" },
+  { label: "Workspace intelligence", value: "flashcards" },
   { label: "Verify answer", value: "verify_answer" },
   { label: "Compare explanations", value: "compare_explanations" },
   { label: "Guidance", value: "tutor_guidance" },
@@ -791,7 +791,7 @@ export default function ReasoningReplayConsole() {
             {loadingRuns ? (
               <PlaceholderBlock />
             ) : runs.length === 0 ? (
-              <EmptyState text="No reasoning runs yet. Generate flashcards, verify an answer, or use guidance to populate replay." />
+              <EmptyState text="No reasoning runs yet. Generate workspace intelligence, verify an answer, or use guidance to populate replay." />
             ) : (
               runs.map((run) => {
                 const active = selectedRun?.id === run.id;
@@ -1047,7 +1047,7 @@ function formatDominantMisconception(value: string | null | undefined) {
 function labelForMode(mode: string) {
   switch (mode) {
     case "flashcards":
-      return "Flashcards";
+      return "Workspace intelligence";
     case "verify_answer":
       return "Verify answer";
     case "compare_explanations":
@@ -1323,6 +1323,11 @@ function topCandidateMargin(candidateScores: Array<{ blendedScore: number }>) {
   if (candidateScores.length < 2) return 0;
   const sorted = [...candidateScores].sort((left, right) => right.blendedScore - left.blendedScore);
   return sorted[0].blendedScore - sorted[1].blendedScore;
+}
+
+function round3(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.round(value * 1000) / 1000;
 }
 
 function average(values: number[]) {

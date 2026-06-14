@@ -4,7 +4,13 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { upload } from "@vercel/blob/client";
 
-export default function CreateForm() {
+export default function CreateForm({
+  defaultGenerationMode = "flashcards",
+  lockedGenerationMode,
+}: {
+  defaultGenerationMode?: "flashcards" | "notes";
+  lockedGenerationMode?: "flashcards" | "notes";
+}) {
   const API_BODY_LIMIT = 4 * 1024 * 1024; // ~4MB body limit for serverless; larger videos will be uploaded to Blob
   const [pending, setPending] = useState(false);
   const [contentType, setContentType] = useState<
@@ -16,7 +22,7 @@ export default function CreateForm() {
   const [subtitleName, setSubtitleName] = useState("");
   const [videoName, setVideoName] = useState("");
   const [cardCount, setCardCount] = useState(20); // Default 20 cards
-  const [generationMode, setGenerationMode] = useState<"flashcards" | "notes">("flashcards");
+  const [generationMode, setGenerationMode] = useState<"flashcards" | "notes">(lockedGenerationMode || defaultGenerationMode);
 
   // Refs to clear file inputs programmatically
   const urlRef = useRef<HTMLInputElement>(null);
@@ -61,7 +67,7 @@ export default function CreateForm() {
       const fileInput = form.querySelector<HTMLInputElement>('input[name="file"]');
       const pdfOrPptx = fileInput?.files?.[0];
       if (pdfOrPptx && pdfOrPptx.size > MAX_FILE_SIZE) {
-        throw new Error(`That file is too large (${(pdfOrPptx.size / 1024 / 1024).toFixed(1)}MB). Keep it under 200MB so your study set can be prepared reliably.`);
+        throw new Error(`That file is too large (${(pdfOrPptx.size / 1024 / 1024).toFixed(1)}MB). Keep it under 200MB so your workspace can be prepared reliably.`);
       }
 
       // Clear stale hidden fields from older attempts
@@ -86,12 +92,12 @@ export default function CreateForm() {
           // Upload docs via direct Blob upload to avoid Vercel request body limits (413)
           const sizeMB = f.size / (1024 * 1024);
           const sizeDisplay = sizeMB >= 1 ? `${sizeMB.toFixed(1)}MB` : `${(f.size / 1024).toFixed(0)}KB`;
-          toast.info(`Preparing your study material (${sizeDisplay})...`);
+          toast.info(`Preparing your workspace material (${sizeDisplay})...`);
           try {
             const blob = await uploadViaBlob(f, "doc");
             fd.append("docUrl", blob.url);
             fd.append("docName", f.name || "document");
-            toast.success("Study material ready. Building your guided set...");
+            toast.success("Source ready. Building your workspace...");
           } catch (err: any) {
             console.warn("[Client] Blob doc upload failed:", err?.message || err);
             // If the doc is big, we cannot safely fall back to sending it through the API
@@ -134,10 +140,10 @@ export default function CreateForm() {
           const sizeMB = videoFile.size / (1024 * 1024);
           const sizeKB = videoFile.size / 1024;
           const sizeDisplay = sizeMB >= 1 ? `${sizeMB.toFixed(1)}MB` : `${sizeKB.toFixed(0)}KB`;
-          toast.info(`Preparing your audio lesson (${sizeDisplay})...`);
+          toast.info(`Preparing your audio source (${sizeDisplay})...`);
           const blob = await uploadViaBlob(videoFile, "audio");
           fd.append("audioUrl", blob.url);
-          toast.success("Audio ready. Turning it into study guidance...");
+          toast.success("Audio ready. Turning it into workspace guidance...");
         } else if (actualSize > API_BODY_LIMIT) {
           // Upload to Blob for large videos (direct client upload)
           const sizeMB = videoFile.size / (1024 * 1024);
@@ -153,18 +159,18 @@ export default function CreateForm() {
             display: sizeDisplay
           });
           
-          toast.info(`Preparing your lesson video (${sizeDisplay})...`);
+          toast.info(`Preparing your video source (${sizeDisplay})...`);
 
           const blob = await uploadViaBlob(videoFile, "video");
 
           fd.append("videoUrl", blob.url);
           fd.append("videoName", videoFile.name || "video.mp4");
-          toast.success("Video ready. Building study guidance may take a few minutes.");
+          toast.success("Video ready. Building workspace guidance may take a few minutes.");
         } else {
           // Small enough to send directly
           console.log("[Client] Video small enough, sending directly in request");
           fd.append("video", videoFile);
-          toast.info("Reviewing your video and building a guided set...");
+          toast.info("Reviewing your video and building your workspace...");
         }
       }
 
@@ -172,7 +178,7 @@ export default function CreateForm() {
       if (contentType === "video") {
         // Already shown above for video
       } else {
-        toast.info("Preparing your guided study material...");
+        toast.info("Preparing your workspace material...");
       }
 
       // Route to the appropriate API based on mode
@@ -199,7 +205,7 @@ export default function CreateForm() {
         // RunPod serverless can queue jobs; when it doesn't start within our route timeout,
         // the API returns a retryable 503 instead of silently creating fallback content.
         if (res.status === 503 && j?.code === "RUNPOD_IN_QUEUE") {
-          toast.error(`Study generation is briefly queued. Please retry in about 30 to 60 seconds.${tid ? ` (traceId: ${tid})` : ""}`);
+          toast.error(`Workspace generation is briefly queued. Please retry in about 30 to 60 seconds.${tid ? ` (traceId: ${tid})` : ""}`);
           return;
         }
 
@@ -218,7 +224,7 @@ export default function CreateForm() {
         }
 
         if (res.status === 504) {
-          toast.error(`Preparing this study set took too long. Please retry in a moment.${tid ? ` (traceId: ${tid})` : ""}`);
+          toast.error(`Preparing this workspace took too long. Please retry in a moment.${tid ? ` (traceId: ${tid})` : ""}`);
           return;
         }
 
@@ -226,24 +232,24 @@ export default function CreateForm() {
       }
 
       if (generationMode === "notes") {
-        // For study notes, show the result in a new window or redirect to a notes viewer
+        // For workspace briefings, show the result in a viewer
         const data = await res.json();
         if (data.success && data.notes) {
-          // Store notes in sessionStorage and redirect to a viewer page
+          // Store briefing content in sessionStorage and redirect to a viewer page
           sessionStorage.setItem("latestStudyNotes", JSON.stringify(data));
-          toast.success("Your study overview is ready.");
+          toast.success("Your workspace briefing is ready.");
           window.location.href = "/app/study-notes/view";
         } else {
-          throw new Error("We couldn't prepare the study overview.");
+          throw new Error("We couldn't prepare the workspace briefing.");
         }
       } else {
-        // For flashcards, use the existing redirect logic
+        // For AI checkpoints, use the existing redirect logic
         const location = res.headers.get("Location");
         if (location) {
-          toast.success("Your guided review set is ready.");
+          toast.success("Your AI checkpoints are ready.");
           window.location.href = location;
         } else {
-          toast.success("Your study set is ready.");
+          toast.success("Your workspace is ready.");
           window.location.reload();
         }
       }
@@ -251,7 +257,7 @@ export default function CreateForm() {
       if (err?.name === "AbortError") {
         toast.error("This is taking longer than expected. Please retry, or use a smaller file or direct audio upload.");
       } else {
-        toast.error(err?.message || "We couldn't prepare your study material right now.");
+        toast.error(err?.message || "We couldn't prepare your workspace material right now.");
       }
     } finally {
       setPending(false);
@@ -261,41 +267,43 @@ export default function CreateForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Generation mode selector */}
-      <div>
-        <label className="text-sm font-medium">What would you like to build for this learning space?</label>
-        <div className="mt-2 flex gap-3">
-          <button
-            type="button"
-            onClick={() => setGenerationMode("flashcards")}
-            className={`flex-1 px-4 py-3 rounded border text-sm font-medium transition-colors ${
-              generationMode === "flashcards"
-                ? "bg-black text-white border-black"
-                : "bg-white text-gray-700 border-gray-300 hover:border-gray-400"
-            }`}
-          >
-            📇 Guided review
-            <p className="text-xs mt-1 opacity-75">Build a guided review set</p>
-          </button>
-          <button
-            type="button"
-            onClick={() => setGenerationMode("notes")}
-            className={`flex-1 px-4 py-3 rounded border text-sm font-medium transition-colors ${
-              generationMode === "notes"
-                ? "bg-black text-white border-black"
-                : "bg-white text-gray-700 border-gray-300 hover:border-gray-400"
-            }`}
-          >
-            📝 Study Notes
-            <p className="text-xs mt-1 opacity-75">Build a study overview with key ideas</p>
-          </button>
+      {lockedGenerationMode ? null : (
+        <div>
+          <label className="text-sm font-medium">What would you like this workspace to produce?</label>
+          <div className="mt-2 flex gap-3">
+            <button
+              type="button"
+              onClick={() => setGenerationMode("flashcards")}
+              className={`flex-1 px-4 py-3 rounded border text-sm font-medium transition-colors ${
+                generationMode === "flashcards"
+                  ? "bg-black text-white border-black"
+                  : "bg-white text-gray-700 border-gray-300 hover:border-gray-400"
+              }`}
+            >
+              🧠 AI Checkpoints
+              <p className="text-xs mt-1 opacity-75">Generate adaptive checkpoints to validate alignment, readiness, and understanding</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setGenerationMode("notes")}
+              className={`flex-1 px-4 py-3 rounded border text-sm font-medium transition-colors ${
+                generationMode === "notes"
+                  ? "bg-black text-white border-black"
+                  : "bg-white text-gray-700 border-gray-300 hover:border-gray-400"
+              }`}
+            >
+              📝 Workspace Briefing
+              <p className="text-xs mt-1 opacity-75">Generate an executive summary, key decisions, risks, and next actions</p>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       <div>
-        <label className="text-sm font-medium">Learning space title <span className="text-red-500">*</span></label>
+        <label className="text-sm font-medium">Workspace title <span className="text-red-500">*</span></label>
         <input 
           name="title" 
-          placeholder="Photosynthesis review" 
+          placeholder="Q3 planning hub" 
           className="w-full border rounded p-2" 
           required 
           minLength={3}
@@ -303,30 +311,30 @@ export default function CreateForm() {
         />
       </div>
 
-      {/* Guided-review size selector - only show for guided review mode */}
+      {/* AI checkpoint count selector */}
       {generationMode === "flashcards" && (
         <div>
-          <label className="text-sm font-medium">How much guided review do you want?</label>
+          <label className="text-sm font-medium">How many AI checkpoints do you want?</label>
           <select
             className="mt-1 w-full border rounded p-2 bg-white"
             value={cardCount}
             onChange={(e) => setCardCount(Number(e.target.value))}
           >
-            <option value={10}>10 prompts</option>
-            <option value={15}>15 prompts</option>
-            <option value={20}>20 prompts (recommended)</option>
-            <option value={30}>30 prompts</option>
-            <option value={50}>50 prompts</option>
-            <option value={75}>75 prompts</option>
-            <option value={100}>100 prompts (slower)</option>
+            <option value={10}>10 checkpoints</option>
+            <option value={15}>15 checkpoints</option>
+            <option value={20}>20 checkpoints (recommended)</option>
+            <option value={30}>30 checkpoints</option>
+            <option value={50}>50 checkpoints</option>
+            <option value={75}>75 checkpoints</option>
+            <option value={100}>100 checkpoints (slower)</option>
           </select>
-          <p className="text-xs text-gray-500 mt-1">Longer review sets take more time to prepare.</p>
+          <p className="text-xs text-gray-500 mt-1">Larger checkpoint sets take more time to prepare.</p>
         </div>
       )}
 
       {/* Content type selector */}
       <div>
-        <label className="text-sm font-medium">Study material type</label>
+        <label className="text-sm font-medium">Source type</label>
         <select
           className="mt-1 w-full border rounded p-2 bg-white"
           value={contentType}
@@ -406,7 +414,7 @@ export default function CreateForm() {
             rows={6}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Paste study material here..."
+            placeholder="Paste notes, docs, transcripts, or reference text here..."
             className="w-full border rounded p-2"
           />
           <div className="flex gap-2">
@@ -574,8 +582,8 @@ export default function CreateForm() {
         {pending 
           ? "Preparing..." 
           : generationMode === "flashcards" 
-            ? "Build guided review" 
-            : "Build study notes"}
+            ? "Build AI checkpoints" 
+            : "Build workspace briefing"}
       </button>
     </form>
   );

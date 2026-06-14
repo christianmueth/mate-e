@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { Prisma } from "@prisma/client";
 import { prisma, safeUpsertUser } from "@/lib/db";
-import { createReasoningEngine, type TutoringGuidanceResult } from "@/lib/reasoningEngine/engine";
+import { createReasoningEngine, type TutoringGuidanceResult, type TutoringStrategy } from "@/lib/reasoningEngine/engine";
 import { DEFAULT_TUTORING_POLICY_ARTIFACT, scoreTutoringStrategyWithArtifact } from "@/lib/reasoningEngine/adaptivePolicyArtifact";
 import { persistReasoningResponseRun, mapTutoringStrategies } from "@/lib/reasoningEngine/persistence";
 import { getStudentKnowledgeState, updateStudentStateFromVerification, formatStudentState } from "@/lib/reasoningEngine/studentState";
@@ -78,6 +78,10 @@ type AdaptiveTutoringTelemetry = {
   muonOverrideApplied: boolean;
   muonHelperLoop: MuonHelperLoopTelemetry | null;
   candidateScores: AdaptiveCandidateScore[];
+};
+
+type RankedAdaptiveCandidate = AdaptiveCandidateScore & {
+  strategy: TutoringStrategy;
 };
 
 export async function POST(req: Request) {
@@ -264,7 +268,7 @@ function applyAdaptiveTutoringPolicy(
   const worldModelTransitions = new Map(
     rerankerWorldModel.candidateTransitions.map((transition) => [transition.strategyId, transition])
   );
-  let candidateScores = guidance.metadata.candidateStrategies
+  let candidateScores: RankedAdaptiveCandidate[] = guidance.metadata.candidateStrategies
     .map((strategy) => {
       const artifactValueScore = scoreTutoringStrategyWithArtifact(strategy, DEFAULT_TUTORING_POLICY_ARTIFACT);
       const worldModelTrace = scoreWorldModelCandidate(worldModelTransitions.get(strategy.id), config.worldModelRiskPenalty);
@@ -274,6 +278,7 @@ function applyAdaptiveTutoringPolicy(
       );
       return {
         strategy,
+        strategyId: strategy.id,
         heuristicScore: strategy.score,
         artifactValueScore,
         blendedScore,
@@ -285,6 +290,9 @@ function applyAdaptiveTutoringPolicy(
         muonHelperScore: null,
         finalScore: blendedScore,
         helperSupport: 0,
+        heuristicSelected: false,
+        adaptiveSelected: false,
+        muonHelperSelected: false,
       };
     })
     .sort((left, right) => right.blendedScore - left.blendedScore || right.heuristicScore - left.heuristicScore);
@@ -498,7 +506,7 @@ async function loadMuonHelperLoopOutcomes(userId: string, limit: number): Promis
       const strategyId = toStringValue(selectedStrategy?.id);
       if (!strategyId || !strategyType) return null;
 
-      return {
+      const outcome: MuonHelperLoopOutcome = {
         strategyId,
         strategyType,
         strategyMode,
@@ -508,9 +516,11 @@ async function loadMuonHelperLoopOutcomes(userId: string, limit: number): Promis
         confidence: round3(toFiniteNumber(run.confidence)),
         trajectoryScore: round3(toFiniteNumber(run.trajectoryScore)),
         createdAt: run.createdAt.toISOString(),
-      } satisfies MuonHelperLoopOutcome;
+      };
+
+      return outcome;
     })
-    .filter((item): item is MuonHelperLoopOutcome => Boolean(item));
+    .filter((item): item is MuonHelperLoopOutcome => item !== null);
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {

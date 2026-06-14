@@ -10,18 +10,15 @@ export default function NavBarClerkControls() {
   return (
     <>
       <SignedIn>
-        <Link href="/app" className="text-sm px-3 py-1.5 rounded border hover:bg-gray-50">
-          Study
-        </Link>
-        <Link href="/app/workspace" className="text-sm px-3 py-1.5 rounded border hover:bg-gray-50">
+        <Link href="/app/workspace" className="text-sm px-3 py-1.5 rounded border border-teal-200 bg-white text-teal-900 hover:bg-teal-50">
           Workspace
         </Link>
-        <Link href="/app/progress" className="text-sm px-3 py-1.5 rounded border hover:bg-gray-50">
-          Progress
+        <Link href="/app/progress" className="text-sm px-3 py-1.5 rounded border border-teal-200 bg-white text-teal-900 hover:bg-teal-50">
+          Insights
         </Link>
       </SignedIn>
 
-      <Suspense fallback={<SignedOutAuthButtons nextTarget="/app" />}>
+      <Suspense fallback={<SignedOutAuthButtons nextTarget="/app/workspace" />}>
         <SignedOutAuthButtonsFromLocation />
       </Suspense>
 
@@ -44,10 +41,10 @@ function SignedOutAuthButtons({ nextTarget }: { nextTarget: string }) {
   return (
     <SignedOut>
       <SignInButton mode="modal" forceRedirectUrl={nextTarget} signUpForceRedirectUrl={nextTarget}>
-        <button className="text-sm px-3 py-1.5 rounded bg-black text-white">Sign in</button>
+        <button className="text-sm px-3 py-1.5 rounded bg-teal-600 text-white hover:bg-teal-700">Sign in</button>
       </SignInButton>
       <SignUpButton mode="modal" forceRedirectUrl={nextTarget} signInForceRedirectUrl={nextTarget}>
-        <button className="text-sm px-3 py-1.5 rounded border">Create account</button>
+        <button className="text-sm px-3 py-1.5 rounded border border-teal-200 bg-white text-teal-900 hover:bg-teal-50">Create account</button>
       </SignUpButton>
     </SignedOut>
   );
@@ -68,7 +65,7 @@ function buildAuthRedirectTarget(
 
 function normalizeNextTarget(value: string | null | undefined) {
   const trimmed = String(value || "").trim();
-  if (!trimmed.startsWith("/")) return "/app";
-  if (trimmed.startsWith("//")) return "/app";
+  if (!trimmed.startsWith("/")) return "/app/workspace";
+  if (trimmed.startsWith("//")) return "/app/workspace";
   return trimmed;
 }

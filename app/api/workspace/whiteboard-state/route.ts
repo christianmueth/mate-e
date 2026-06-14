@@ -13,16 +13,27 @@ function internalErrorResponse(message: string, error: unknown) {
 
 type StrokePoint = { x: number; y: number };
 type Stroke = { id: string; color: string; width: number; points: StrokePoint[] };
-type BoardRectangle = { id: string; kind: "rectangle"; x: number; y: number; width: number; height: number; color: string };
+type BoardRectangle = { id: string; kind: "rectangle"; x: number; y: number; width: number; height: number; color: string; text: string };
 type BoardArrow = { id: string; kind: "arrow"; start: StrokePoint; end: StrokePoint; color: string };
 type BoardShape = BoardRectangle | BoardArrow;
 type BoardNote = { id: string; x: number; y: number; width: number; height: number; text: string; color: string };
-type ToolMode = "select" | "draw" | "pan" | "rectangle" | "arrow" | "note";
+type BoardImage = { id: string; x: number; y: number; width: number; height: number; src: string; name: string };
+type ToolMode = "select" | "draw" | "erase" | "pan" | "rectangle" | "arrow" | "note";
+
+const CANVAS_WIDTH = 2400;
+const CANVAS_HEIGHT = 1600;
+const MIN_RECT_WIDTH = 8;
+const MIN_RECT_HEIGHT = 8;
+const MIN_NOTE_WIDTH = 120;
+const MIN_NOTE_HEIGHT = 80;
+const MIN_IMAGE_WIDTH = 96;
+const MIN_IMAGE_HEIGHT = 72;
 
 type PersistedWhiteboardState = {
   strokes: Stroke[];
   shapes: BoardShape[];
   notes: BoardNote[];
+  images: BoardImage[];
   annotations: string[];
   workspaceGoal: string;
   toolMode: ToolMode;
@@ -270,6 +281,7 @@ function sanitizeSnapshot(value: unknown): PersistedWhiteboardState | null {
     strokes: Array.isArray(candidate.strokes) ? candidate.strokes.map(sanitizeStroke).filter(Boolean) as Stroke[] : [],
     shapes: Array.isArray(candidate.shapes) ? candidate.shapes.map(sanitizeShape).filter(Boolean) as BoardShape[] : [],
     notes: Array.isArray(candidate.notes) ? candidate.notes.map(sanitizeNote).filter(Boolean) as BoardNote[] : [],
+    images: Array.isArray(candidate.images) ? candidate.images.map(sanitizeImage).filter(Boolean) as BoardImage[] : [],
     annotations: Array.isArray(candidate.annotations) ? candidate.annotations.filter((item): item is string => typeof item === "string").slice(0, 8) : [],
     workspaceGoal: typeof candidate.workspaceGoal === "string" ? candidate.workspaceGoal.slice(0, 4000) : "",
     toolMode: isToolMode(candidate.toolMode) ? candidate.toolMode : "select",
@@ -299,11 +311,12 @@ function sanitizeShape(value: unknown): BoardShape | null {
     return {
       id: String(candidate.id || `rect-${Date.now()}`),
       kind: "rectangle",
-      x: clamp(Number(candidate.x) || 0, 0, 960),
-      y: clamp(Number(candidate.y) || 0, 0, 560),
-      width: clamp(Number(candidate.width) || 60, 40, 960),
-      height: clamp(Number(candidate.height) || 50, 40, 560),
+      x: clamp(Number(candidate.x) || 0, 0, CANVAS_WIDTH),
+      y: clamp(Number(candidate.y) || 0, 0, CANVAS_HEIGHT),
+      width: clamp(Number(candidate.width) || 60, MIN_RECT_WIDTH, CANVAS_WIDTH),
+      height: clamp(Number(candidate.height) || 50, MIN_RECT_HEIGHT, CANVAS_HEIGHT),
       color: typeof candidate.color === "string" ? candidate.color : "#0f172a",
+      text: typeof candidate.text === "string" ? candidate.text.slice(0, 4000) : "",
     };
   }
   if (candidate.kind === "arrow") {
@@ -326,12 +339,27 @@ function sanitizeNote(value: unknown): BoardNote | null {
   const candidate = value as Record<string, unknown>;
   return {
     id: String(candidate.id || `note-${Date.now()}`),
-    x: clamp(Number(candidate.x) || 0, 0, 960),
-    y: clamp(Number(candidate.y) || 0, 0, 560),
-    width: clamp(Number(candidate.width) || 180, 120, 960),
-    height: clamp(Number(candidate.height) || 120, 80, 560),
+    x: clamp(Number(candidate.x) || 0, 0, CANVAS_WIDTH),
+    y: clamp(Number(candidate.y) || 0, 0, CANVAS_HEIGHT),
+    width: clamp(Number(candidate.width) || 180, MIN_NOTE_WIDTH, CANVAS_WIDTH),
+    height: clamp(Number(candidate.height) || 120, MIN_NOTE_HEIGHT, CANVAS_HEIGHT),
     text: typeof candidate.text === "string" ? candidate.text.slice(0, 4000) : "",
     color: typeof candidate.color === "string" ? candidate.color : "#FEF3C7",
+  };
+}
+
+function sanitizeImage(value: unknown): BoardImage | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Record<string, unknown>;
+  if (typeof candidate.src !== "string" || !candidate.src) return null;
+  return {
+    id: String(candidate.id || `image-${Date.now()}`),
+    x: clamp(Number(candidate.x) || 0, 0, CANVAS_WIDTH),
+    y: clamp(Number(candidate.y) || 0, 0, CANVAS_HEIGHT),
+    width: clamp(Number(candidate.width) || 320, MIN_IMAGE_WIDTH, CANVAS_WIDTH),
+    height: clamp(Number(candidate.height) || 220, MIN_IMAGE_HEIGHT, CANVAS_HEIGHT),
+    src: candidate.src,
+    name: typeof candidate.name === "string" ? candidate.name.slice(0, 240) : "Board image",
   };
 }
 
@@ -339,8 +367,8 @@ function sanitizePoint(value: unknown): StrokePoint | null {
   if (!value || typeof value !== "object") return null;
   const candidate = value as Record<string, unknown>;
   return {
-    x: clamp(Number(candidate.x) || 0, 0, 960),
-    y: clamp(Number(candidate.y) || 0, 0, 560),
+    x: clamp(Number(candidate.x) || 0, 0, CANVAS_WIDTH),
+    y: clamp(Number(candidate.y) || 0, 0, CANVAS_HEIGHT),
   };
 }
 
@@ -354,5 +382,5 @@ function clamp(value: number, min: number, max: number) {
 }
 
 function isToolMode(value: unknown): value is ToolMode {
-  return value === "select" || value === "draw" || value === "pan" || value === "rectangle" || value === "arrow" || value === "note";
+  return value === "select" || value === "draw" || value === "erase" || value === "pan" || value === "rectangle" || value === "arrow" || value === "note";
 }

@@ -3,6 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+type InitialBriefing = {
+  notes: string;
+  title: string;
+  source: string;
+  deckId: string;
+};
+
 function markdownToHtml(markdown: string): string {
   let html = markdown
     .replace(/^### (.*$)/gim, '<h3 class="text-xl font-semibold mt-4 mb-2">$1</h3>')
@@ -21,7 +28,7 @@ function markdownToHtml(markdown: string): string {
   return html;
 }
 
-export default function StudyNotesViewClient() {
+export default function StudyNotesViewClient({ initialBriefing }: { initialBriefing?: InitialBriefing | null }) {
   const router = useRouter();
   const [notes, setNotes] = useState<string>("");
   const [title, setTitle] = useState<string>("");
@@ -29,6 +36,14 @@ export default function StudyNotesViewClient() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (initialBriefing) {
+      setNotes(initialBriefing.notes);
+      setTitle(initialBriefing.title || "Workspace Briefing");
+      setSource(initialBriefing.source || "");
+      setLoading(false);
+      return;
+    }
+
     const storedData = sessionStorage.getItem("latestStudyNotes");
     if (!storedData) {
       router.push("/app");
@@ -38,15 +53,15 @@ export default function StudyNotesViewClient() {
     try {
       const data = JSON.parse(storedData);
       setNotes(data.notes || "");
-      setTitle(data.title || "Study Notes");
+      setTitle(data.title || "Workspace Briefing");
       setSource(data.source || "");
     } catch (err) {
-      console.error("Failed to parse study notes:", err);
+      console.error("Failed to parse workspace briefing:", err);
       router.push("/app");
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, [initialBriefing, router]);
 
   if (loading) {
     return (
@@ -65,14 +80,15 @@ export default function StudyNotesViewClient() {
     <div className="max-w-4xl mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">Workspace Briefing</p>
           <h1 className="text-3xl font-bold">{title}</h1>
-          <p className="text-sm text-gray-500 mt-1">Study source: {source}</p>
+          <p className="text-sm text-gray-500 mt-1">Workspace source: {source}</p>
         </div>
         <button
           onClick={() => router.push("/app")}
           className="px-4 py-2 border rounded hover:bg-gray-50"
         >
-          ← Back to study workspace
+          ← Back to workspace
         </button>
       </div>
 
@@ -80,11 +96,11 @@ export default function StudyNotesViewClient() {
         <button
           onClick={() => {
             navigator.clipboard.writeText(notes);
-            alert("Study notes copied to your clipboard.");
+            alert("Workspace briefing copied to your clipboard.");
           }}
           className="px-4 py-2 border rounded hover:bg-gray-50"
         >
-          📋 Copy study notes
+          📋 Copy workspace briefing
         </button>
         <button
           onClick={() => window.print()}

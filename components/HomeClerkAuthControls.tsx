@@ -12,8 +12,8 @@ export default function HomeClerkAuthControls({ nextTarget }: { nextTarget: stri
           forceRedirectUrl={nextTarget}
           signInForceRedirectUrl={nextTarget}
         >
-          <button className="rounded-full bg-black px-6 py-3 text-sm font-medium text-white hover:opacity-90">
-            Start guided study
+          <button className="rounded-full bg-teal-600 px-6 py-3 text-sm font-medium text-white hover:bg-teal-700">
+            Start focused work
           </button>
         </SignUpButton>
         <SignInButton
@@ -21,7 +21,7 @@ export default function HomeClerkAuthControls({ nextTarget }: { nextTarget: stri
           forceRedirectUrl={nextTarget}
           signUpForceRedirectUrl={nextTarget}
         >
-          <button className="rounded-full border border-gray-300 px-6 py-3 text-sm font-medium text-gray-800 hover:bg-gray-50">
+          <button className="rounded-full border border-teal-200 bg-white px-6 py-3 text-sm font-medium text-teal-900 hover:bg-teal-50">
             Sign in
           </button>
         </SignInButton>
@@ -29,10 +29,10 @@ export default function HomeClerkAuthControls({ nextTarget }: { nextTarget: stri
 
       <SignedIn>
         <Link
-          href="/app"
-          className="rounded-full bg-black px-6 py-3 text-sm font-medium text-white hover:opacity-90"
+          href="/app/workspace"
+          className="rounded-full bg-teal-600 px-6 py-3 text-sm font-medium text-white hover:bg-teal-700"
         >
-          Open study workspace
+          Open productivity workspace
         </Link>
       </SignedIn>
     </>

@@ -14,11 +14,11 @@ export default async function Home({
 
   return (
     <main className="flex min-h-[calc(100vh-64px)] items-center justify-center p-6">
-      <div className="mx-auto max-w-4xl text-center space-y-6">
+      <div className="mx-auto max-w-4xl rounded-[2rem] border border-teal-100 bg-white/70 p-8 text-center shadow-[0_24px_80px_rgba(15,118,110,0.12)] backdrop-blur space-y-6">
         {/* Logo / feature image */}
         <div className="relative mx-auto h-40 w-40 sm:h-48 sm:w-48">
           <Image
-            src="/logo.png"
+            src="/site-logo.png"
             alt="Mate-E"
             fill
             sizes="(max-width: 640px) 160px, 192px"
@@ -28,29 +28,27 @@ export default async function Home({
         </div>
 
         {/* Headline + subcopy always visible */}
-        <h1 className="text-3xl sm:text-5xl font-semibold">
-          A calm adaptive tutor for real study sessions
+        <p className="text-sm font-medium uppercase tracking-[0.18em] text-gray-500">
+          Ahoy there, I&apos;m Mate-E
+        </p>
+        <h1 className="text-3xl sm:text-5xl font-semibold text-teal-950">
+          A calm adaptive workspace for focused work
         </h1>
-        <p className="mx-auto max-w-2xl text-gray-600">
-          Mate-E helps you study with guided review, tutoring hints, progress memory, and recovery-aware recommendations that stay understandable from one session to the next.
+        <p className="mx-auto max-w-2xl text-teal-800/80">
+          Organize material, keep context across sessions, and move into the next useful work block faster.
         </p>
 
-        <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-gray-700">
-          <span className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1">Guided study sessions</span>
-          <span className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1">Tutor hints that react to your answer</span>
-          <span className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1">Progress memory across sessions</span>
-          <span className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1">Recovery-aware recommendations</span>
-          <span className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1">Clear next-step explanations</span>
-        </div>
-
-        <p className="mx-auto max-w-2xl text-sm text-gray-500">
-          The tutoring experience is adaptive, but its authority stays bounded. Recommendations are meant to feel useful and explainable, not opaque or over-controlling.
-        </p>
+        <details className="mx-auto max-w-2xl rounded-2xl border border-teal-100 bg-teal-50/70 px-4 py-3 text-left text-sm text-teal-900/80">
+          <summary className="cursor-pointer font-medium text-teal-950">How the workspace guidance works</summary>
+          <p className="mt-3">
+            Recommendations stay lightweight and explainable. The workspace suggests next steps without turning into an opaque planner.
+          </p>
+        </details>
 
         <div className="flex flex-wrap items-center justify-center gap-3">
           <Link
             href="/how-adaptive-guidance-works"
-            className="rounded-full border border-gray-300 px-6 py-3 text-sm font-medium text-gray-800 hover:bg-gray-50"
+            className="rounded-full border border-teal-200 bg-white px-6 py-3 text-sm font-medium text-teal-900 hover:bg-teal-50"
           >
             Explore resources
           </Link>
@@ -59,10 +57,10 @@ export default async function Home({
             <HomeClerkAuthControls nextTarget={nextTarget} />
           ) : (
             <Link
-              href="/app"
-              className="rounded-full bg-black px-6 py-3 text-sm font-medium text-white hover:opacity-90"
+              href="/app/workspace"
+              className="rounded-full bg-teal-600 px-6 py-3 text-sm font-medium text-white hover:bg-teal-700"
             >
-              Open study workspace
+              Open workspace
             </Link>
           )}
         </div>
@@ -73,7 +71,7 @@ export default async function Home({
 
 function normalizeNextTarget(value: string | undefined) {
   const trimmed = String(value || "").trim();
-  if (!trimmed.startsWith("/")) return "/app";
-  if (trimmed.startsWith("//")) return "/app";
+  if (!trimmed.startsWith("/")) return "/app/workspace";
+  if (trimmed.startsWith("//")) return "/app/workspace";
   return trimmed;
 }

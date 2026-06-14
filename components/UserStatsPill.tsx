@@ -13,8 +13,8 @@ export default function UserStatsPill() {
   if (!me?.signedIn) return null;
   return (
     <div className="flex items-center gap-3 text-xs">
-      <span className="px-2 py-1 rounded bg-gray-100 border">🔥 {me.streak} day{me.streak===1?"":"s"}</span>
-      <span className="px-2 py-1 rounded bg-gray-100 border">⭐ {me.xpToday}/{me.dailyGoal} XP</span>
+      <span className="px-2 py-1 rounded border border-teal-200 bg-teal-50 text-teal-900">Continuity {me.streak} day{me.streak===1?"":"s"}</span>
+      <span className="px-2 py-1 rounded border border-teal-200 bg-white text-teal-900">Workspace active</span>
     </div>
   );
 }

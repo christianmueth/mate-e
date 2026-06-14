@@ -28,7 +28,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
         orderBy: [{ srsDueAt: "asc" } as any, { createdAt: "asc" }],
         take: focusConcept ? Math.max(take * 3, 90) : take,
         select: { id: true, question: true, answer: true, srsReps: true, srsDueAt: true } as any,
-      });
+      }) as unknown as Array<{ id: string; question: string; answer: string; srsReps: number; srsDueAt: Date | null }>;
       return NextResponse.json({ cards: prioritizeCards(cards, focusConcept).slice(0, take) });
     } catch { /* fall through */ }
   }

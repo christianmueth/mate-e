@@ -9,16 +9,16 @@ export default function DeleteCardButton({ cardId }: { cardId: string }) {
 
   async function onDelete() {
     if (busy) return;
-    if (!confirm("Remove this study prompt?")) return;
+    if (!confirm("Remove this AI checkpoint?")) return;
 
     setBusy(true);
     try {
       const res = await fetch(`/api/card/${cardId}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("We couldn't remove this study prompt.");
-      toast.success("Study prompt removed");
+      if (!res.ok) throw new Error("We couldn't remove this AI checkpoint.");
+      toast.success("AI checkpoint removed");
       router.refresh(); // ✅ re-renders the server page without a function prop
     } catch (e: any) {
-      toast.error(e?.message || "We couldn't remove this study prompt.");
+      toast.error(e?.message || "We couldn't remove this AI checkpoint.");
       setBusy(false);
     }
   }

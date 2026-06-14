@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 
@@ -6,7 +6,6 @@ import DeleteDeckButton from "@/components/DeleteDeckButton";
 import DeckTitleInline from "@/components/DeckTitleInline";
 import AddCardForm from "@/components/AddCardForm";
 import StudyCarousel from "@/components/StudyCarousel";
-import ExportButtons from "@/components/ExportButtons";
 import RegenerateDeckButton from "@/components/RegenerateDeckButton";
 import DeckCardList from "@/components/DeckCardList";
 
@@ -20,8 +19,9 @@ export default async function DeckPage({
   searchParams: Promise<{ concept?: string; reason?: string; source?: string }>;
 }) {
   const { id } = await params; // Next 15: await params
-  const { userId } = await auth();
-  if (!userId) redirect(`/?next=${encodeURIComponent(`/app/deck/${id}`)}`);
+  const authResult = await auth();
+  const clerkUserId = authResult.userId;
+  if (!clerkUserId) redirect(`/?next=${encodeURIComponent(`/app/deck/${id}`)}`);
 
   const resolvedSearchParams = await searchParams;
   const focusConcept = cleanQueryValue(resolvedSearchParams.concept);
@@ -29,7 +29,7 @@ export default async function DeckPage({
   const recommendationSource = cleanQueryValue(resolvedSearchParams.source);
 
   const deck = await prisma.deck.findFirst({
-    where: { id, user: { clerkUserId: userId } },
+    where: { id, user: { clerkUserId } },
     include: { cards: { orderBy: { createdAt: "asc" }, select: { id: true, question: true, answer: true } } },
   });
   if (!deck) return notFound();
@@ -39,15 +39,14 @@ export default async function DeckPage({
       <div className="flex items-center justify-between gap-3">
         <DeckTitleInline deckId={deck.id} initial={deck.title} />
         <div className="flex items-center gap-2">
-          <ExportButtons deckId={deck.id} />
           <RegenerateDeckButton deckId={deck.id} />
           <DeleteDeckButton deckId={deck.id} />
         </div>
       </div>
 
       <section className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Study</p>
-        <h2 className="text-lg font-semibold">Guided session</h2>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Workspace intelligence</p>
+        <h2 className="text-lg font-semibold">Workspace Copilot</h2>
         <StudyCarousel
           deckId={deck.id}
           focusConcept={focusConcept}
@@ -57,8 +56,8 @@ export default async function DeckPage({
       </section>
 
       <section className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Library</p>
-        <h2 className="text-lg font-semibold">Add or refine study material</h2>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Workspace library</p>
+        <h2 className="text-lg font-semibold">Add or refine workspace material</h2>
         <AddCardForm deckId={deck.id} />
         <DeckCardList cards={deck.cards} />
       </section>

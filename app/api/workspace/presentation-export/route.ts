@@ -28,15 +28,13 @@ export async function POST(req: Request) {
 
     const pptx = new PptxGenJS();
     pptx.layout = "LAYOUT_WIDE";
-  pptx.author = "Mate-E";
-  pptx.company = "Mate-E";
+    pptx.author = "Mate-E";
+    pptx.company = "Mate-E";
     pptx.subject = plan.objective || "Workspace presentation";
     pptx.title = plan.title || "Workspace presentation";
-    pptx.lang = "en-US";
     pptx.theme = {
       headFontFace: "Aptos Display",
       bodyFontFace: "Aptos",
-      lang: "en-US",
     };
 
     const titleSlide = pptx.addSlide();
@@ -68,7 +66,7 @@ export async function POST(req: Request) {
       if (bulletText.length) {
         pptSlide.addText(bulletText, {
           x: 0.75, y: 2.05, w: 6.1, h: 3.6,
-          fontSize: 18, color: "0F172A", breakLine: false, paraSpaceAfterPt: 10,
+          fontSize: 18, color: "0F172A", breakLine: false, paraSpaceAfter: 10,
           margin: 0.06, valign: "top",
         });
       }
@@ -107,14 +105,15 @@ export async function POST(req: Request) {
         x: 0.7, y: 0.6, w: 5.6, h: 0.55, fontFace: "Aptos Display", fontSize: 23, bold: true, color: "7C2D12",
       });
       closingSlide.addText(plan.presenterChecklist.map((item) => ({ text: item, options: { bullet: { indent: 18 } } })), {
-        x: 0.85, y: 1.5, w: 10.8, h: 4.6, fontSize: 20, color: "431407", margin: 0.08, paraSpaceAfterPt: 14,
+        x: 0.85, y: 1.5, w: 10.8, h: 4.6, fontSize: 20, color: "431407", margin: 0.08, paraSpaceAfter: 14,
       });
     }
 
     const file = await pptx.write({ outputType: PptxGenJS.OutputType.nodebuffer });
     const buffer = Buffer.isBuffer(file) ? file : Buffer.from(file as ArrayBuffer);
+    const responseBody = new Uint8Array(buffer);
 
-    return new NextResponse(buffer, {
+    return new NextResponse(responseBody, {
       status: 200,
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",

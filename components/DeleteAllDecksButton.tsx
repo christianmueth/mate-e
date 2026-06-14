@@ -21,14 +21,14 @@ export default function DeleteAllDecksButton() {
       });
 
       if (!response.ok) {
-        throw new Error('We could not remove your learning spaces.');
+        throw new Error('We could not remove your workspaces.');
       }
 
       // Refresh the page to show the changes
       router.refresh();
     } catch (error) {
       console.error('Error deleting decks:', error);
-      alert('We could not remove your learning spaces.');
+      alert('We could not remove your workspaces.');
     } finally {
       setIsDeleting(false);
       setIsConfirming(false);
@@ -49,7 +49,7 @@ export default function DeleteAllDecksButton() {
         ? 'Removing...'
         : isConfirming
         ? 'Click again to confirm removal'
-        : 'Remove all study sets'}
+        : 'Remove all workspaces'}
     </button>
   );
 }

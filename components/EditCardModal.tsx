@@ -17,7 +17,7 @@ export default function EditCardModal({ card }: { card: { id: string; question: 
       body: JSON.stringify({ question: q, answer: a }),
     });
     setSaving(false);
-    if (r.ok) { setOpen(false); router.refresh(); } else alert("We couldn't save those study notes right now.");
+    if (r.ok) { setOpen(false); router.refresh(); } else alert("We couldn't save those checkpoint changes right now.");
   }
 
   return (
@@ -26,7 +26,7 @@ export default function EditCardModal({ card }: { card: { id: string; question: 
       {open && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl w-full max-w-lg p-4 space-y-3">
-            <h3 className="font-semibold">Refine this study prompt</h3>
+            <h3 className="font-semibold">Refine this AI checkpoint</h3>
             <input className="w-full border rounded p-2" value={q} onChange={e=>setQ(e.target.value)} />
             <textarea className="w-full border rounded p-2 h-32" value={a} onChange={e=>setA(e.target.value)} />
             <div className="flex gap-2 justify-end">

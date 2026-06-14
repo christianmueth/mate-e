@@ -7,6 +7,9 @@
     "dev:3001": "next dev -p 3001",
     "build": "next build",
     "start": "next start",
+    "android:sync": "npx cap sync android",
+    "android:open": "npx cap open android",
+    "android:run": "npm run build && npm run android:sync",
     "postinstall": "prisma generate",
     "reasoning:export:recovery": "node scripts/export-tutoring-recovery-dataset.mjs",
     "reasoning:export:shadow": "node scripts/export-adaptive-shadow-dataset.mjs",
@@ -24,6 +27,9 @@
     "flashcards:contract:json": "node scripts/flashcards-llm-contract-test.mjs --mode json"
   },
   "dependencies": {
+    "@capacitor/android": "^8.3.4",
+    "@capacitor/cli": "^8.3.4",
+    "@capacitor/core": "^8.3.4",
     "@clerk/nextjs": "^6.31.9",
     "@distube/ytdl-core": "^4.16.12",
     "@ffmpeg/core": "^0.12.6",

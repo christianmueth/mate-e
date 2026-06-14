@@ -149,14 +149,18 @@ export async function transcribeAudioUrlWithRunpod(
     }
 
     async function runsyncCall(runsyncUrl: string): Promise<ASRResult> {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (auth) {
+        headers.Authorization = auth;
+      }
+
       const rpRes = await fetchWithTimeout(
         runsyncUrl,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: auth,
-          },
+          headers,
           body: JSON.stringify(payload),
         },
         timeoutMs
@@ -211,15 +215,18 @@ export async function transcribeAudioUrlWithRunpod(
     async function runAndPoll(runUrl: string, statusBaseUrl: string): Promise<ASRResult> {
       const startedAt = Date.now();
       const pollMs = Math.max(250, Number(process.env.RUNPOD_ASR_POLL_MS || 1500));
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (auth) {
+        headers.Authorization = auth;
+      }
 
       const submitResp = await fetchWithTimeout(
         runUrl,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: auth,
-          },
+          headers,
           body: JSON.stringify(payload),
         },
         Math.min(timeoutMs, 30_000)
@@ -262,10 +269,7 @@ export async function transcribeAudioUrlWithRunpod(
           statusUrl,
           {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: auth,
-            },
+            headers,
           },
           Math.min(remaining, 30_000)
         );

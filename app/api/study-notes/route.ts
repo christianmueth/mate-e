@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { callLLMResult } from "@/lib/aiClient";
+import { prisma, safeUpsertUser } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,6 +10,7 @@ export const maxDuration = 60;
 
 const MODEL = "gpt-4o-mini";
 const MAX_SOURCE_CHARS = 30_000;
+const WORKSPACE_BRIEFING_CARD_QUESTION = "__WORKSPACE_BRIEFING__";
 
 function cleanText(s: string) { return s.replace(/\s+/g, " ").trim(); }
 function truncate(s: string, max = MAX_SOURCE_CHARS) { return s.length > max ? s.slice(0, max) : s; }
@@ -20,24 +22,36 @@ async function generateStudyNotesWithOpenAI(source: string): Promise<string | nu
     return null;
   }
   
-  const systemPrompt = `You are an expert study assistant. Given educational content, create comprehensive study notes that include:
+  const systemPrompt = `You are an expert workspace strategist. Given source material, create a professional Workspace Briefing in clean Markdown.
 
-1. **Overview**: A brief summary of the main topic and its importance
-2. **Key Concepts**: Core ideas explained clearly with context
-3. **Critical Points**: The most important takeaways that students must understand (mark these with ⚠️)
-4. **Main Topics**: Organized breakdown of major themes or sections
-5. **Examples & Applications**: Real-world applications or examples if mentioned
-6. **Study Tips**: Recommended focus areas and connections between concepts
+The briefing must contain these sections in this order:
 
-Format the output in clean Markdown with:
-- Clear headings (##, ###)
-- Bullet points for lists
-- Bold text for emphasis
-- Use ⚠️ emoji for critical/must-know points
+## Executive Summary
+- Summarize the most important context, conclusions, and why this material matters.
 
-Make the notes comprehensive yet concise, suitable for review and exam prep.`;
+## Key Decisions
+- Call out important choices, tradeoffs, open decisions, and unresolved questions.
 
-  const userPrompt = `Create detailed study notes and overview for the following content:\n\n${truncate(source)}`;
+## Action Items
+- Extract practical next steps, owners if obvious, and immediate follow-through items.
+
+## Risks & Unknowns
+- Identify blockers, ambiguities, dependencies, missing information, and execution risks.
+
+## Important Entities
+- List important people, systems, timelines, teams, vendors, projects, or clients mentioned.
+
+## Suggested Follow-Ups
+- Recommend investigations, clarifications, or validation steps that should happen next.
+
+Instructions:
+- Keep the tone operational, concise, and decision-oriented.
+- Prefer actionability over academic explanation.
+- Use bullet points where useful.
+- Do not frame the output as study notes, tutoring, or exam prep.
+- If a section has limited evidence, say that clearly instead of inventing content.`;
+
+  const userPrompt = `Create a Workspace Briefing for the following material:\n\n${truncate(source)}`;
 
   try {
     console.log("[StudyNotes] Calling OpenAI API...");
@@ -130,7 +144,7 @@ async function extractPptxTextFromBuffer(buf: Buffer): Promise<string> {
 
 async function extractTextFromSource(fd: FormData): Promise<{ text: string; title: string; source: string }> {
   let text = "";
-  let title = (fd.get("title") as string) || "Study Notes";
+  let title = (fd.get("title") as string) || "Workspace Briefing";
   let source = "unknown";
 
   // Handle different content types
@@ -269,11 +283,39 @@ export async function POST(req: Request) {
       );
     }
 
+    let deckId: string | null = null;
+    let persisted = false;
+    try {
+      const userRow = await safeUpsertUser(authResult.userId, { id: true });
+      if (userRow) {
+        const deck = await prisma.deck.create({
+          data: {
+            title,
+            userId: userRow.id,
+            source,
+            cards: {
+              create: {
+                question: WORKSPACE_BRIEFING_CARD_QUESTION,
+                answer: notes,
+              },
+            },
+          },
+          select: { id: true },
+        });
+        deckId = deck.id;
+        persisted = true;
+      }
+    } catch (persistError) {
+      console.error("[StudyNotes] Failed to persist workspace briefing:", persistError);
+    }
+
     return NextResponse.json({
       success: true,
       notes,
       title,
-      source
+      source,
+      deckId,
+      persisted,
     });
 
   } catch (error: any) {

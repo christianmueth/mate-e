@@ -13,19 +13,19 @@ export default function CardRow({ id, question, answer }: { id: string; question
   async function save() {
     if (busy) return;
     setBusy(true);
-    const t = toast.loading("Saving study changes...");
+    const t = toast.loading("Saving workspace changes...");
     try {
       const res = await fetch(`/api/card/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: q, answer: a }),
       });
-      if (!res.ok) throw new Error("We couldn't save these study changes.");
-      toast.success("Study changes saved");
+      if (!res.ok) throw new Error("We couldn't save these workspace changes.");
+      toast.success("Workspace changes saved");
       setEditing(false);
       router.refresh();
     } catch (e: any) {
-      toast.error(e?.message || "We couldn't save these study changes.");
+      toast.error(e?.message || "We couldn't save these workspace changes.");
     } finally {
       toast.dismiss(t);
       setBusy(false);
@@ -34,26 +34,26 @@ export default function CardRow({ id, question, answer }: { id: string; question
 
   async function del() {
     if (busy) return;
-    toast("Remove this study prompt?", {
+    toast("Remove this workspace item?", {
       action: {
         label: "Remove",
         onClick: async () => {
           setBusy(true);
-          const t = toast.loading("Removing study prompt...");
+          const t = toast.loading("Removing workspace item...");
           try {
             const res = await fetch(`/api/card/${id}`, { method: "DELETE" });
-            if (!res.ok) throw new Error("We couldn't remove this study prompt.");
-            toast.success("Study prompt removed");
+            if (!res.ok) throw new Error("We couldn't remove this workspace item.");
+            toast.success("Workspace item removed");
             router.refresh();
           } catch (e: any) {
-            toast.error(e?.message || "We couldn't remove this study prompt.");
+            toast.error(e?.message || "We couldn't remove this workspace item.");
             setBusy(false);
           } finally {
             toast.dismiss(t);
           }
         },
       },
-      cancel: { label: "Cancel" },
+      cancel: { label: "Cancel", onClick: () => {} },
       duration: 8000,
     });
   }

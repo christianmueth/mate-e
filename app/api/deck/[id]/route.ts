@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { prisma } from "@/lib/db";
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+type RouteContext = { params: Promise<{ id: string }> };
+
+export async function PATCH(req: Request, context: RouteContext) {
+  const { id } = await context.params;
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -11,26 +14,27 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!t) return NextResponse.json({ error: "Title required" }, { status: 400 });
 
   const deck = await prisma.deck.findFirst({
-    where: { id: params.id, user: { clerkUserId: userId } },
+    where: { id, user: { clerkUserId: userId } },
     select: { id: true },
   });
   if (!deck) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  await prisma.deck.update({ where: { id: params.id }, data: { title: t } });
+  await prisma.deck.update({ where: { id }, data: { title: t } });
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE(_req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_req: Request, context: RouteContext) {
+  const { id } = await context.params;
   const { userId } = await auth();
   if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const deck = await prisma.deck.findFirst({
-    where: { id: params.id, user: { clerkUserId: userId } },
+    where: { id, user: { clerkUserId: userId } },
     select: { id: true },
   });
   if (!deck) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  await prisma.card.deleteMany({ where: { deckId: params.id } });
-  await prisma.deck.delete({ where: { id: params.id } });
+  await prisma.card.deleteMany({ where: { deckId: id } });
+  await prisma.deck.delete({ where: { id } });
   return NextResponse.json({ ok: true });
 }

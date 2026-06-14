@@ -1,16 +1,28 @@
 import Link from "next/link";
 
 const items = [
-  { href: "/app/workspace", label: "Workspace hub" },
-  { href: "/app/workspace/whiteboard", label: "Whiteboard" },
-  { href: "/app/workspace/presentations", label: "Presentations" },
+  {
+    href: "/app/workspace#capture",
+    label: "Capture",
+    matches: ["/app/workspace/whiteboard"],
+  },
+  {
+    href: "/app/workspace/operations",
+    label: "Organize",
+    matches: ["/app/workspace/operations", "/app/workspace/presentations"],
+  },
+  {
+    href: "/app/workspace",
+    label: "Execute",
+    matches: ["/app/workspace"],
+  },
 ];
 
 export default function WorkspaceSectionNav({ currentPath }: { currentPath: string }) {
   return (
     <div className="flex flex-wrap gap-2">
       {items.map((item) => {
-        const active = currentPath === item.href;
+        const active = item.matches.includes(currentPath);
         return (
           <Link
             key={item.href}

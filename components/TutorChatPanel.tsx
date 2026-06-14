@@ -57,6 +57,7 @@ export default function TutorChatPanel() {
   const messageViewportRef = useRef<HTMLDivElement | null>(null);
 
   const isWorkspaceRoute = pathname?.startsWith("/app") ?? false;
+  const isWhiteboardRoute = pathname?.startsWith("/app/workspace/whiteboard") ?? false;
   const deckId = useMemo(() => extractDeckId(pathname), [pathname]);
   const isDeckStudyRoute = Boolean(deckId);
   const focusConcept = searchParams.get("concept");
@@ -132,14 +133,14 @@ export default function TutorChatPanel() {
         const res = await fetch(`/api/tutor-chat${query.size ? `?${query.toString()}` : ""}`, { cache: "no-store" });
         const data = (await safeJson(res)) as TutorChatResponse | null;
         if (!res.ok || !data?.ok) {
-          throw new Error(data?.error || "We couldn't load tutor continuity right now.");
+          throw new Error(data?.error || "We couldn't load workspace continuity right now.");
         }
         if (!cancelled) {
           setMessages(Array.isArray(data.messages) ? data.messages : []);
           setContext(data.context || null);
         }
       } catch (error: unknown) {
-        if (!cancelled) toast.error(getErrorMessage(error, "We couldn't load tutor continuity right now."));
+        if (!cancelled) toast.error(getErrorMessage(error, "We couldn't load workspace continuity right now."));
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -205,7 +206,7 @@ export default function TutorChatPanel() {
     lastStarterPromptRef.current = routeKey;
   }, [isWorkspaceRoute, routeKey, starterPrompt]);
 
-  if (!isWorkspaceRoute || !enabled) return null;
+  if (!isWorkspaceRoute || !enabled || isWhiteboardRoute) return null;
 
   const promptSuggestions = buildPromptSuggestions(context, pathname);
   const summaryLabel = buildSummaryLabel({ pathname, deckId, deckTitle: context?.deckTitle ?? null });
@@ -241,14 +242,14 @@ export default function TutorChatPanel() {
       });
       const data = (await safeJson(res)) as TutorChatResponse | null;
       if (!res.ok || !data?.ok || !data.message) {
-        throw new Error(data?.error || "We couldn't get tutor guidance right now.");
+        throw new Error(data?.error || "We couldn't get workspace guidance right now.");
       }
       setMessages((current) => [...current, data.message as TutorChatMessage]);
       setContext(data.context || null);
       setOpen(true);
     } catch (error: unknown) {
       setMessages((current) => current.filter((item) => item.id !== optimisticMessage.id));
-      toast.error(getErrorMessage(error, "We couldn't get tutor guidance right now."));
+      toast.error(getErrorMessage(error, "We couldn't get workspace guidance right now."));
     } finally {
       setSending(false);
     }
@@ -259,7 +260,7 @@ export default function TutorChatPanel() {
       <div className="pointer-events-auto overflow-hidden rounded-3xl border border-sky-200 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.18)] backdrop-blur">
         <div className="flex items-center justify-between gap-3 border-b border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 px-4 py-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700">Persistent tutor</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700">Persistent workspace guide</p>
             <p className="truncate text-sm text-slate-700">Context-aware guidance for {summaryLabel}</p>
           </div>
           <button
@@ -303,12 +304,12 @@ export default function TutorChatPanel() {
 
             {activeSessionContext?.currentCard ? (
               <div className="rounded-2xl border border-violet-200 bg-violet-50/80 px-4 py-3 text-sm leading-6 text-slate-700">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-800">Live study context</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-800">Live workspace context</p>
                 <p className="mt-1 font-medium text-slate-900">{activeSessionContext.currentCard.question}</p>
                 {activeSessionContext.latestCoaching?.hint ? (
-                  <p className="mt-2 text-slate-700">Latest tutor hint: {activeSessionContext.latestCoaching.hint}</p>
+                  <p className="mt-2 text-slate-700">Latest workspace hint: {activeSessionContext.latestCoaching.hint}</p>
                 ) : activeSessionContext.answerDraft ? (
-                  <p className="mt-2 text-slate-700">Your current draft is loaded, so the tutor can respond to what you have already tried.</p>
+                  <p className="mt-2 text-slate-700">Your current draft is loaded, so Mate-E can respond to what you have already tried.</p>
                 ) : null}
                 {activeSessionContext.latestCoaching?.worldModelExplanation ? (
                   <div className="mt-3 rounded-2xl border border-fuchsia-200 bg-white/70 px-3 py-3 text-[13px] leading-5 text-slate-700">
@@ -339,7 +340,7 @@ export default function TutorChatPanel() {
             <div ref={messageViewportRef} className="max-h-[22rem] space-y-3 overflow-y-auto pr-1">
               {bootstrapping || loading ? (
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                  Restoring tutor continuity...
+                  Restoring workspace continuity...
                 </div>
               ) : messages.length ? (
                 messages.map((message) => (
@@ -351,7 +352,7 @@ export default function TutorChatPanel() {
                     }
                   >
                     <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                      {message.role === "assistant" ? "Tutor" : "You"}
+                      {message.role === "assistant" ? "Mate-E" : "You"}
                     </p>
                     <p className="whitespace-pre-wrap">{message.content}</p>
                   </div>
@@ -359,7 +360,7 @@ export default function TutorChatPanel() {
               ) : (
                 <div className="space-y-3 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-4 text-sm leading-6 text-slate-700">
                   <p className="font-medium text-slate-900">Ask for a quick explanation, a next-step recommendation, or help unpacking what feels shaky.</p>
-                  <p>The tutor can use your current workspace, recent study history, and saved weak concepts to keep guidance continuous.</p>
+                  <p>Mate-E can use your current workspace, recent history, and saved weak concepts to keep guidance continuous.</p>
                 </div>
               )}
             </div>
@@ -390,11 +391,11 @@ export default function TutorChatPanel() {
               <textarea
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
-                placeholder="Ask the tutor what to review, what changed, or why this concept still matters."
+                placeholder="Ask Mate-E what to review, what changed, or why this concept still matters."
                 className="min-h-[88px] w-full rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
               />
               <div className="flex items-center justify-between gap-3">
-                <p className="text-xs leading-5 text-slate-500">The tutor can explain and recommend, but it will not take study actions for you.</p>
+                <p className="text-xs leading-5 text-slate-500">Mate-E can explain and recommend, but it will not take actions for you.</p>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -408,7 +409,7 @@ export default function TutorChatPanel() {
                     className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
                     disabled={sending || !draft.trim()}
                   >
-                    {sending ? "Thinking..." : "Ask tutor"}
+                    {sending ? "Thinking..." : "Ask Mate-E"}
                   </button>
                 </div>
               </div>
@@ -420,7 +421,7 @@ export default function TutorChatPanel() {
             className="w-full bg-white px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50"
             onClick={() => setOpen(true)}
           >
-            Reopen tutor chat
+            Reopen workspace chat
           </button>
         )}
       </div>
@@ -450,7 +451,7 @@ function buildPromptSuggestions(context: TutorChatContext | null, pathname: stri
       : "What concept looks the shakiest right now?",
     pathname === "/app/progress"
       ? "What does my recent progress suggest?"
-      : "How should I use this study set right now?",
+      : "How should I use this workspace set right now?",
   ];
 
   return Array.from(new Set(suggestions));
@@ -466,7 +467,7 @@ function buildSummaryLabel({
   deckTitle: string | null;
 }) {
   if (pathname === "/app/progress") return "progress view";
-  if (deckId) return deckTitle || "current study set";
+  if (deckId) return deckTitle || "current workspace set";
   return "workspace";
 }
 

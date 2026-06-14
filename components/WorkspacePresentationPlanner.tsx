@@ -30,7 +30,7 @@ type PresentationPlan = {
 
 const sourceTypeOptions = [
   { value: "notes", label: "Notes" },
-  { value: "study-set", label: "Study set" },
+  { value: "study-set", label: "Reference set" },
   { value: "tutor-summary", label: "Guidance summary" },
   { value: "transcript", label: "Transcript" },
   { value: "pdf", label: "PDF or document" },
@@ -170,8 +170,8 @@ export default function WorkspacePresentationPlanner() {
   return (
     <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
       <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Guided presentation construction</p>
-        <h2 className="mt-3 text-xl font-semibold text-slate-950">Generate an outline, then edit it yourself.</h2>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Organize narrative</p>
+        <h2 className="mt-3 text-xl font-semibold text-slate-950">Turn captured material into a structure you can edit.</h2>
         <div className="mt-5 space-y-4">
           <label className="block text-sm font-medium text-slate-800">
             Source type
@@ -184,12 +184,12 @@ export default function WorkspacePresentationPlanner() {
 
           <label className="block text-sm font-medium text-slate-800">
             Working title
-            <input value={sourceTitle} onChange={(event) => setSourceTitle(event.target.value)} placeholder="For example: Cellular respiration review" className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900" />
+            <input value={sourceTitle} onChange={(event) => setSourceTitle(event.target.value)} placeholder="For example: Q3 migration readiness review" className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900" />
           </label>
 
           <label className="block text-sm font-medium text-slate-800">
             Audience
-            <input value={audience} onChange={(event) => setAudience(event.target.value)} placeholder="For example: Intro biology classmates" className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900" />
+            <input value={audience} onChange={(event) => setAudience(event.target.value)} placeholder="For example: leadership team, product org, or client stakeholders" className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900" />
           </label>
 
           <label className="block text-sm font-medium text-slate-800">
@@ -203,9 +203,9 @@ export default function WorkspacePresentationPlanner() {
           </label>
 
           <div className="flex items-center justify-between gap-3">
-            <p className="text-xs leading-5 text-slate-500">The planner proposes structure and speaker guidance, but you stay in control of the final slide flow.</p>
+            <p className="text-xs leading-5 text-slate-500">Mate-E proposes structure and speaker guidance, but you stay in control of the final narrative and slide flow.</p>
             <button type="button" onClick={generatePlan} disabled={!canGenerate || loading} className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
-              {loading ? "Building..." : "Generate outline"}
+              {loading ? "Organizing..." : "Generate structure"}
             </button>
           </div>
         </div>
@@ -215,7 +215,7 @@ export default function WorkspacePresentationPlanner() {
         <div className="rounded-3xl border border-fuchsia-200 bg-fuchsia-50 p-5 shadow-sm">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-fuchsia-800">Editable presentation output</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-fuchsia-800">Editable narrative output</p>
               <p className="mt-2 text-sm text-slate-700">{plan ? `${outlineCount} slides drafted` : "No outline yet"}</p>
             </div>
             {plan ? (
@@ -285,7 +285,7 @@ export default function WorkspacePresentationPlanner() {
           </>
         ) : (
           <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm leading-7 text-slate-600 shadow-sm">
-            Generate an outline from your notes, deck summary, transcript, or guidance recap. The output stays editable so the presentation remains human-authored.
+            Generate structure from notes, transcripts, summaries, or guidance recaps. The output stays editable so the final presentation remains human-authored.
           </div>
         )}
       </section>
