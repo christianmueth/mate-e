@@ -321,54 +321,69 @@ export default function TutorChatPanel() {
 
             <div className="space-y-3 border-t border-slate-100 p-4">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Current goal</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Top priority</p>
                 <p className="mt-2 text-sm font-medium text-slate-950">{recommendation.currentGoal}</p>
                 {recommendation.confidence ? (
                   <p className="mt-2 text-xs font-medium text-slate-600">Confidence: {recommendation.confidence}</p>
                 ) : null}
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <InfoCard label="Next action" value={recommendation.nextAction} />
-                <InfoCard label="Risk" value={recommendation.risk} />
-              </div>
-
               <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace awareness</p>
-                <div className="mt-2 space-y-2 text-sm text-slate-700">
-                  <p><span className="font-medium text-slate-950">Last working on:</span> {recommendation.lastWorkedOn}</p>
-                  <p><span className="font-medium text-slate-950">Last active:</span> {recommendation.lastUpdated}</p>
-                  <p><span className="font-medium text-slate-950">Changes since then:</span> {recommendation.changes}</p>
-                </div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Suggested next step</p>
+                <p className="mt-2 text-sm font-medium text-slate-950">{recommendation.nextAction}</p>
+                <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Reason</p>
+                <p className="mt-2 text-sm leading-6 text-slate-700">{recommendation.risk}</p>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                {recommendation.actions.map((action) => (
+              <div className="grid gap-2">
+                {recommendation.actions.slice(0, 1).map((action) => (
                   <button
                     key={action.label}
                     type="button"
-                    className={action.tone === "primary"
-                      ? "rounded-full bg-slate-950 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
-                      : "rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                    }
+                    className="rounded-full bg-slate-950 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
                     disabled={sending}
                     onClick={() => void submitMessage(action.prompt)}
                   >
-                    {sending ? "Working..." : action.label}
+                    {sending ? "Working..." : "Start"}
                   </button>
                 ))}
               </div>
 
-              {bootstrapping || loading ? (
+              <details className="rounded-2xl border border-slate-200 bg-white p-4">
+                <summary className="cursor-pointer text-sm font-medium text-slate-900">Show more</summary>
+                <div className="mt-4 space-y-4">
+                  <div className="text-sm text-slate-700">
+                    <p><span className="font-medium text-slate-950">Last working on:</span> {recommendation.lastWorkedOn}</p>
+                    <p className="mt-2"><span className="font-medium text-slate-950">Last active:</span> {recommendation.lastUpdated}</p>
+                    <p className="mt-2"><span className="font-medium text-slate-950">Changes since then:</span> {recommendation.changes}</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {recommendation.actions.slice(1).map((action) => (
+                      <button
+                        key={action.label}
+                        type="button"
+                        className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                        disabled={sending}
+                        onClick={() => void submitMessage(action.prompt)}
+                      >
+                        {sending ? "Working..." : action.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {bootstrapping || loading ? (
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
                   Loading recommendation...
                 </div>
               ) : latestAssistantMessage ? (
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-700">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Recommendation note</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Mate-E note</p>
                   <p className="mt-2 whitespace-pre-wrap">{latestAssistantMessage.content}</p>
                 </div>
-              ) : null}
+                  ) : null}
+                </div>
+              </details>
 
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs text-slate-500">{recommendation.modeLabel}</p>
