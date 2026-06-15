@@ -11,7 +11,7 @@ import {
   type TutorChatSessionContext,
 } from "@/lib/tutorChatSessionContext";
 import { readTutorChatEnabled, setTutorChatEnabled, TUTOR_CHAT_ENABLED_EVENT } from "@/lib/tutorChatPreferences";
-import { readWorkspaceContext, updateWorkspaceContext } from "@/lib/workspaceContext";
+import { readWorkspaceContext, updateWorkspaceContext, WORKSPACE_CONTEXT_EVENT, type WorkspaceContext } from "@/lib/workspaceContext";
 
 type TutorChatMessage = {
   id: string;
@@ -42,6 +42,26 @@ type TutorChatResponse = {
 const OPEN_STORAGE_KEY = "mate-e:tutor-chat-open";
 const LEGACY_OPEN_STORAGE_KEY = "quickstud:tutor-chat-open";
 
+type RecommendationAction = {
+  label: string;
+  prompt: string;
+  tone: "primary" | "secondary";
+};
+
+type RecommendationCard = {
+  title: string;
+  subtitle: string;
+  modeLabel: string;
+  currentGoal: string;
+  nextAction: string;
+  risk: string;
+  changes: string;
+  lastWorkedOn: string;
+  lastUpdated: string;
+  confidence: string | null;
+  actions: RecommendationAction[];
+};
+
 export default function TutorChatPanel() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -53,11 +73,11 @@ export default function TutorChatPanel() {
   const [messages, setMessages] = useState<TutorChatMessage[]>([]);
   const [context, setContext] = useState<TutorChatContext | null>(null);
   const [sessionContext, setSessionContext] = useState<TutorChatSessionContext | null>(null);
+  const [workspaceState, setWorkspaceState] = useState<WorkspaceContext>(() => readWorkspaceContext());
   const [draft, setDraft] = useState("");
-  const messageViewportRef = useRef<HTMLDivElement | null>(null);
+  const [showComposer, setShowComposer] = useState(false);
 
   const isWorkspaceRoute = pathname?.startsWith("/app") ?? false;
-  const isWhiteboardRoute = pathname?.startsWith("/app/workspace/whiteboard") ?? false;
   const deckId = useMemo(() => extractDeckId(pathname), [pathname]);
   const isDeckStudyRoute = Boolean(deckId);
   const focusConcept = searchParams.get("concept");
@@ -98,6 +118,17 @@ export default function TutorChatPanel() {
 
     window.addEventListener(TUTOR_CHAT_ENABLED_EVENT, syncEnabledState);
     return () => window.removeEventListener(TUTOR_CHAT_ENABLED_EVENT, syncEnabledState);
+  }, []);
+
+  useEffect(() => {
+    function syncWorkspaceState(event?: Event) {
+      const detail = event && "detail" in event ? (event as CustomEvent<WorkspaceContext>).detail : null;
+      setWorkspaceState(detail || readWorkspaceContext());
+    }
+
+    syncWorkspaceState();
+    window.addEventListener(WORKSPACE_CONTEXT_EVENT, syncWorkspaceState);
+    return () => window.removeEventListener(WORKSPACE_CONTEXT_EVENT, syncWorkspaceState);
   }, []);
 
   useEffect(() => {
@@ -162,12 +193,6 @@ export default function TutorChatPanel() {
   }, [deckId, isWorkspaceRoute, routeKey]);
 
   useEffect(() => {
-    const viewport = messageViewportRef.current;
-    if (!viewport) return;
-    viewport.scrollTop = viewport.scrollHeight;
-  }, [messages, open]);
-
-  useEffect(() => {
     updateWorkspaceContext((currentWorkspaceContext) => ({
       ...currentWorkspaceContext,
       weakConcepts: context?.weakConcepts?.length ? context.weakConcepts.slice(0, 8) : currentWorkspaceContext.weakConcepts,
@@ -208,13 +233,24 @@ export default function TutorChatPanel() {
     if (lastStarterPromptRef.current === routeKey) return;
 
     setOpen(true);
+    setShowComposer(true);
     setDraft((current) => current.trim() ? current : nextStarter);
     lastStarterPromptRef.current = routeKey;
   }, [isWorkspaceRoute, routeKey, starterPrompt]);
 
-  if (!isWorkspaceRoute || !enabled || isWhiteboardRoute) return null;
+  if (!isWorkspaceRoute || !enabled) return null;
 
   const summaryLabel = buildSummaryLabel({ pathname, deckId, deckTitle: context?.deckTitle ?? null });
+  const latestAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant") ?? null;
+  const recommendation = useMemo(() => buildRecommendationCard({
+    pathname,
+    summaryLabel,
+    workspaceState,
+    context,
+    deckTitle: context?.deckTitle ?? null,
+    focusConcept,
+    focusReason,
+  }), [context, focusConcept, focusReason, pathname, summaryLabel, workspaceState]);
 
   async function submitMessage(prefill?: string) {
     const content = (prefill ?? draft).trim();
@@ -260,99 +296,129 @@ export default function TutorChatPanel() {
     }
   }
 
-  const visibleMessages = messages.slice(-4);
-  const latestAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant") ?? null;
-
   return (
-    <div className="pointer-events-none fixed inset-x-4 bottom-4 z-40 flex justify-end sm:left-auto sm:right-5 sm:w-[20rem]">
+    <div className="pointer-events-none fixed inset-x-4 bottom-4 z-40 flex justify-end sm:left-auto sm:right-5 sm:w-[22rem]">
       <div className={open
-        ? "pointer-events-auto overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white/95 shadow-[0_16px_40px_rgba(15,23,42,0.14)] backdrop-blur"
+        ? "pointer-events-auto w-full overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white/95 shadow-[0_16px_40px_rgba(15,23,42,0.14)] backdrop-blur"
         : "pointer-events-auto"
       }>
-        <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Chat</p>
-            <p className="truncate text-sm text-slate-700">{summaryLabel}</p>
-          </div>
-          <button
-            type="button"
-            className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-            onClick={() => setOpen((current) => !current)}
-          >
-            {open ? "Close" : "Open"}
-          </button>
-        </div>
-
         {open ? (
-          <div className="space-y-3 border-t border-slate-100 p-4">
-            {latestAssistantMessage && !visibleMessages.length ? (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-700">
-                <p className="mt-1">{latestAssistantMessage.content}</p>
+          <div>
+            <div className="flex items-start justify-between gap-3 px-4 py-4">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Mate-E Recommendation</p>
+                <h2 className="mt-1 text-lg font-semibold text-slate-950">{recommendation.title}</h2>
+                <p className="mt-1 text-sm text-slate-600">{recommendation.subtitle}</p>
               </div>
-            ) : null}
-
-            <div ref={messageViewportRef} className="max-h-[14rem] space-y-2 overflow-y-auto pr-1">
-              {bootstrapping || loading ? (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
-                  Loading...
-                </div>
-              ) : visibleMessages.length ? (
-                visibleMessages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={message.role === "assistant"
-                      ? "mr-4 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-700"
-                      : "ml-6 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-900"
-                    }
-                  >
-                    <p className="whitespace-pre-wrap">{message.content}</p>
-                  </div>
-                ))
-              ) : (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-700">
-                  No messages yet.
-                </div>
-              )}
+              <button
+                type="button"
+                className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                onClick={() => setOpen(false)}
+              >
+                Hide
+              </button>
             </div>
 
-            <form
-              className="space-y-3"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void submitMessage();
-              }}
-            >
-              <textarea
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                placeholder="Message"
-                className="min-h-[76px] w-full rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
-              />
-              <div className="flex justify-end gap-2">
+            <div className="space-y-3 border-t border-slate-100 p-4">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Current goal</p>
+                <p className="mt-2 text-sm font-medium text-slate-950">{recommendation.currentGoal}</p>
+                {recommendation.confidence ? (
+                  <p className="mt-2 text-xs font-medium text-slate-600">Confidence: {recommendation.confidence}</p>
+                ) : null}
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <InfoCard label="Next action" value={recommendation.nextAction} />
+                <InfoCard label="Risk" value={recommendation.risk} />
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace awareness</p>
+                <div className="mt-2 space-y-2 text-sm text-slate-700">
+                  <p><span className="font-medium text-slate-950">Last working on:</span> {recommendation.lastWorkedOn}</p>
+                  <p><span className="font-medium text-slate-950">Last active:</span> {recommendation.lastUpdated}</p>
+                  <p><span className="font-medium text-slate-950">Changes since then:</span> {recommendation.changes}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                {recommendation.actions.map((action) => (
+                  <button
+                    key={action.label}
+                    type="button"
+                    className={action.tone === "primary"
+                      ? "rounded-full bg-slate-950 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
+                      : "rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                    }
+                    disabled={sending}
+                    onClick={() => void submitMessage(action.prompt)}
+                  >
+                    {sending ? "Working..." : action.label}
+                  </button>
+                ))}
+              </div>
+
+              {bootstrapping || loading ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
+                  Loading recommendation...
+                </div>
+              ) : latestAssistantMessage ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-700">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Recommendation note</p>
+                  <p className="mt-2 whitespace-pre-wrap">{latestAssistantMessage.content}</p>
+                </div>
+              ) : null}
+
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-slate-500">{recommendation.modeLabel}</p>
                 <button
                   type="button"
-                  className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                  onClick={() => setOpen(false)}
+                  className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  onClick={() => setShowComposer((current) => !current)}
                 >
-                  Close
-                </button>
-                <button
-                  type="submit"
-                  className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-                  disabled={sending || !draft.trim()}
-                >
-                  {sending ? "Thinking..." : "Send"}
+                  {showComposer ? "Hide custom" : "Custom request"}
                 </button>
               </div>
-            </form>
+
+              {showComposer ? (
+                <form
+                  className="space-y-3"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void submitMessage();
+                  }}
+                >
+                  <textarea
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value)}
+                    placeholder="Ask for a custom recommendation"
+                    className="min-h-[76px] w-full rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
+                  />
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                      disabled={sending || !draft.trim()}
+                    >
+                      {sending ? "Working..." : "Ask Mate-E"}
+                    </button>
+                  </div>
+                </form>
+              ) : null}
+            </div>
           </div>
         ) : (
           <button
             type="button"
-            className="h-11 w-11 rounded-full border border-slate-200 bg-white/92 text-xs font-medium text-slate-600 shadow-[0_10px_24px_rgba(15,23,42,0.12)] hover:bg-white"
+            className="w-[15.75rem] rounded-[1.35rem] border border-slate-200 bg-white/95 p-4 text-left shadow-[0_10px_24px_rgba(15,23,42,0.12)] hover:bg-white"
             onClick={() => setOpen(true)}
           >
-            Chat
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Mate-E</p>
+            <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Next recommendation</p>
+            <p className="mt-2 text-sm font-semibold text-slate-950">{recommendation.nextAction}</p>
+            <p className="mt-2 text-xs text-slate-600">{recommendation.currentGoal}</p>
+            <p className="mt-3 text-xs font-medium text-slate-700">Expand</p>
           </button>
         )}
       </div>
@@ -383,9 +449,174 @@ function buildSummaryLabel({
   deckId: string | null;
   deckTitle: string | null;
 }) {
+  if (pathname?.startsWith("/app/workspace/whiteboard")) return "capture";
+  if (pathname?.startsWith("/app/workspace/operations") || pathname?.startsWith("/app/workspace/presentations")) return "organize";
   if (pathname === "/app/workspace") return "execute";
   if (deckId) return deckTitle || "current workspace set";
   return "workspace";
+}
+
+function InfoCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+      <p className="mt-2 text-sm leading-6 text-slate-700">{value}</p>
+    </div>
+  );
+}
+
+function buildRecommendationCard({
+  pathname,
+  summaryLabel,
+  workspaceState,
+  context,
+  deckTitle,
+  focusConcept,
+  focusReason,
+}: {
+  pathname: string | null;
+  summaryLabel: string;
+  workspaceState: WorkspaceContext;
+  context: TutorChatContext | null;
+  deckTitle: string | null;
+  focusConcept: string | null;
+  focusReason: string | null;
+}): RecommendationCard {
+  const isCapture = pathname?.startsWith("/app/workspace/whiteboard") ?? false;
+  const isOrganize = pathname?.startsWith("/app/workspace/operations") || pathname?.startsWith("/app/workspace/presentations") || false;
+  const weakConcept = context?.weakConcepts[0] || workspaceState.weakConcepts[0] || null;
+  const recentFailure = context?.recentFailures[0] || null;
+  const latestGuidance = context?.recentGuidance[0] || workspaceState.tutorMemory?.recentGuidance?.[0] || null;
+  const board = workspaceState.whiteboardReference;
+  const presentation = workspaceState.presentationReference;
+  const currentGoal = board?.workspaceGoal
+    || presentation?.objective
+    || presentation?.title
+    || focusConcept
+    || deckTitle
+    || weakConcept
+    || "Keep the current workspace moving";
+  const lastWorkedOn = board?.boardName || presentation?.title || deckTitle || summaryLabel;
+  const lastUpdated = formatRelativeTime(board?.updatedAt || presentation?.updatedAt || workspaceState.updatedAt);
+  const confidence = typeof workspaceState.currentGuidedSession?.confidence === "number"
+    ? formatPercent(workspaceState.currentGuidedSession.confidence)
+    : null;
+  const changes = board
+    ? `${board.noteCount} notes, ${board.shapeCount} shapes, ${board.annotationCount} annotations on the active board.`
+    : presentation
+      ? `${presentation.outlineCount} outline point${presentation.outlineCount === 1 ? "" : "s"} in the active plan.`
+      : workspaceState.uploadedAssets[0]
+        ? `Latest asset: ${workspaceState.uploadedAssets[0].name}.`
+        : latestGuidance
+          ? `Latest guidance: ${truncateText(latestGuidance, 96)}`
+          : "No new activity detected.";
+
+  if (isCapture) {
+    const nextAction = workspaceState.uploadedAssets[0]
+      ? `Extract action items from ${workspaceState.uploadedAssets[0].name}`
+      : board?.workspaceGoal
+        ? `Summarize and structure ${board.workspaceGoal}`
+        : "Turn the latest capture into tasks";
+    const risk = board?.noteCount
+      ? "Captured material is still loose until it becomes tasks or themes."
+      : focusReason || "Raw inputs can disappear into the board if they are not structured quickly.";
+    return {
+      title: "Intake Assistant",
+      subtitle: "Turn raw input into action.",
+      modeLabel: "Capture",
+      currentGoal,
+      nextAction,
+      risk,
+      changes,
+      lastWorkedOn,
+      lastUpdated,
+      confidence,
+      actions: [
+        { label: "Summarize", prompt: `Summarize the current capture around ${currentGoal} and keep it short.`, tone: "primary" },
+        { label: "Categorize", prompt: `Categorize the current capture around ${currentGoal} into a few clean themes.`, tone: "secondary" },
+        { label: "Extract Tasks", prompt: `Extract concrete tasks and decisions from the current capture around ${currentGoal}.`, tone: "secondary" },
+        { label: "Action Items", prompt: `Generate the next action items from the current capture around ${currentGoal}.`, tone: "secondary" },
+      ],
+    };
+  }
+
+  if (isOrganize) {
+    const nextAction = presentation?.title
+      ? `Build the plan for ${presentation.title}`
+      : `Turn ${currentGoal} into a working plan`;
+    const risk = presentation && presentation.outlineCount < 4
+      ? "The plan still looks thin and may be missing sequence or dependencies."
+      : recentFailure || weakConcept || "A plan without explicit risks and timing will drift.";
+    return {
+      title: "Planning Assistant",
+      subtitle: "Shape the current plan.",
+      modeLabel: "Organize",
+      currentGoal,
+      nextAction,
+      risk,
+      changes,
+      lastWorkedOn,
+      lastUpdated,
+      confidence,
+      actions: [
+        { label: "Generate Plan", prompt: `Generate a concise plan for ${currentGoal} with the fewest necessary steps.`, tone: "primary" },
+        { label: "Identify Risks", prompt: `Identify the main risks and blockers for ${currentGoal}.`, tone: "secondary" },
+        { label: "Build Sprint", prompt: `Build a short sprint for ${currentGoal} with the next bounded tasks.`, tone: "secondary" },
+        { label: "Estimate", prompt: `Estimate the timeline and sequence for ${currentGoal}.`, tone: "secondary" },
+      ],
+    };
+  }
+
+  const nextAction = weakConcept
+    ? `Resolve ${truncateText(weakConcept, 64)}`
+    : latestGuidance
+      ? truncateText(latestGuidance, 72)
+      : `Do the next bounded step for ${currentGoal}`;
+  const risk = recentFailure
+    ? truncateText(recentFailure, 96)
+    : context?.lowConfidenceStreak
+      ? `${context.lowConfidenceStreak} recent low-confidence pass${context.lowConfidenceStreak === 1 ? "" : "es"}.`
+      : weakConcept
+        ? `Weak thread: ${truncateText(weakConcept, 88)}`
+        : "No dominant blocker is recorded, so the risk is drift through indecision.";
+
+  return {
+    title: "Chief of Staff",
+    subtitle: "What should happen next?",
+    modeLabel: "Execute",
+    currentGoal,
+    nextAction,
+    risk,
+    changes,
+    lastWorkedOn,
+    lastUpdated,
+    confidence,
+    actions: [
+      { label: "Do This", prompt: `Give me the single highest-leverage next step for ${currentGoal}. Keep it concrete.`, tone: "primary" },
+      { label: "Why?", prompt: `Why is ${nextAction} the right next step for ${currentGoal}? Include blockers and rationale.`, tone: "secondary" },
+      { label: "Alternative", prompt: `If I do not do ${nextAction}, what is the best alternative next step for ${currentGoal}?`, tone: "secondary" },
+      { label: "Unblock", prompt: `What blocker is most likely to stall ${currentGoal}, and how should I resolve it first?`, tone: "secondary" },
+    ],
+  };
+}
+
+function formatRelativeTime(value: string | null | undefined) {
+  if (!value) return "Just now";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "Just now";
+  const diffMs = Date.now() - date.getTime();
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  if (diffHours < 1) return "Less than an hour ago";
+  if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
+  const diffWeeks = Math.floor(diffDays / 7);
+  return `${diffWeeks} week${diffWeeks === 1 ? "" : "s"} ago`;
+}
+
+function truncateText(value: string, maxLength: number) {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, Math.max(0, maxLength - 1)).trimEnd()}...`;
 }
 
 function getErrorMessage(error: unknown, fallback: string) {
@@ -394,9 +625,4 @@ function getErrorMessage(error: unknown, fallback: string) {
 
 function formatPercent(value: number) {
   return `${Math.round(value * 100)}%`;
-}
-
-function formatSignedPercent(value: number) {
-  const rounded = Math.round(value * 100);
-  return `${rounded > 0 ? "+" : ""}${rounded}%`;
 }

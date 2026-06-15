@@ -18,18 +18,6 @@ export default function NavBar() {
           Mate-E
         </Link>
 
-        <div className="hidden items-center gap-2 md:flex">
-          <Link href="/app/workspace/whiteboard" className="text-sm px-3 py-1.5 rounded border border-teal-200 bg-white text-teal-900 hover:bg-teal-50">
-            Capture
-          </Link>
-          <Link href="/app/workspace/operations" className="text-sm px-3 py-1.5 rounded border border-teal-200 bg-white text-teal-900 hover:bg-teal-50">
-            Organize
-          </Link>
-          <Link href="/app/workspace" className="text-sm px-3 py-1.5 rounded border border-teal-200 bg-white text-teal-900 hover:bg-teal-50">
-            Execute
-          </Link>
-        </div>
-
         <div className="flex items-center gap-3">
           {hasClerk ? (
             <NavBarClerkControls />
