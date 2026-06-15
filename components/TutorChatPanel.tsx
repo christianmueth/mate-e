@@ -346,7 +346,7 @@ export default function TutorChatPanel() {
                     disabled={sending}
                     onClick={() => void submitMessage(action.prompt)}
                   >
-                    {sending ? "Working..." : "Start"}
+                    {sending ? "Working..." : action.label}
                   </button>
                 ))}
               </div>
@@ -567,8 +567,8 @@ function buildRecommendationCard({
       ? "The plan still looks thin and may be missing sequence or dependencies."
       : recentFailure || weakConcept || "A plan without explicit risks and timing will drift.";
     return {
-      title: "Planning Assistant",
-      subtitle: "Shape the current plan.",
+      title: nextAction,
+      subtitle: currentGoal === nextAction ? "Organize" : `For ${truncateText(currentGoal, 64)}`,
       modeLabel: "Organize",
       currentGoal,
       nextAction,
