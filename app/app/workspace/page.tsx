@@ -60,6 +60,7 @@ type FocusQueueItem = {
 type WorkspaceMemoryCard = {
   workspaceName: string;
   lastActive: string;
+  progressLabel: string;
   nextSuggestedStep: string;
 };
 
@@ -151,14 +152,10 @@ export default async function WorkspacePage() {
   const focusQueue = buildFocusQueue(workspaceContext, analytics.lowConfidenceRuns);
   const continuityLabel = persistedWorkspace.savedAt ? formatRelativeTime(persistedWorkspace.savedAt) : "No recent context";
   const nextActions = buildNextActions(operationsFeed, focusQueue);
-  const memoryCard = buildWorkspaceMemoryCard(workspaceContext, continuityLabel, nextActions[0]?.title ?? "Choose the highest-leverage next action");
+  const fallbackAction = buildFallbackPrimaryAction(workspaceContext, recentRuns);
+  const memoryCard = buildWorkspaceMemoryCard(workspaceContext, continuityLabel, nextActions[0]?.title ?? fallbackAction.title);
   const secondaryActions = nextActions.slice(1, 3);
-  const primaryAction = nextActions[0] ?? {
-    title: `Continue ${memoryCard.workspaceName}`,
-    detail: "Start with one concrete task, source, or plan so Mate-E can keep this workspace moving.",
-    href: "/app/workspace/whiteboard",
-    cta: "Continue working",
-  };
+  const primaryAction = nextActions[0] ?? fallbackAction;
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-8 p-6">
@@ -179,24 +176,6 @@ export default async function WorkspacePage() {
           </div>
         </div>
 
-        {secondaryActions.length ? (
-          <div className="mt-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">Need something else?</p>
-            <ol className="mt-3 grid gap-3 md:grid-cols-2">
-            {secondaryActions.map((item, index) => (
-              <li key={item.title} className="rounded-[1.5rem] border border-white/10 bg-black/10 p-4">
-                <h3 className="text-base font-semibold text-white">{item.title}</h3>
-                <div className="mt-3 flex items-center justify-between gap-3">
-                  <p className="text-sm leading-6 text-slate-200">{"detail" in item ? item.detail : item.body}</p>
-                  <Link href={item.href} className="shrink-0 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/15">
-                    {item.cta}
-                  </Link>
-                </div>
-              </li>
-            ))}
-            </ol>
-          </div>
-        ) : null}
       </section>
 
       <section>
@@ -205,16 +184,36 @@ export default async function WorkspacePage() {
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{memoryCard.workspaceName}</h2>
           <div className="mt-5 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
             <p className="text-sm leading-6 text-slate-700">Last active: {memoryCard.lastActive}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-700">Progress: {memoryCard.progressLabel}</p>
             <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Next action</p>
             <p className="mt-2 text-lg font-semibold text-slate-950">{memoryCard.nextSuggestedStep}</p>
             <div className="mt-5">
               <Link href={primaryAction.href} className="inline-flex rounded-full bg-slate-950 px-5 py-3 text-sm font-medium text-white hover:bg-slate-800">
-                Continue working
+                {primaryAction.cta}
               </Link>
             </div>
           </div>
         </article>
       </section>
+
+      {secondaryActions.length ? (
+        <section>
+          <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Need something else?</p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              {secondaryActions.map((item) => (
+                <Link
+                  key={item.title}
+                  href={item.href}
+                  className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50"
+                >
+                  {compactActionLabel(item.title, item.cta)}
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -240,6 +239,7 @@ function buildWorkspaceMemoryCard(
   return {
     workspaceName,
     lastActive: trimUpdatedLabel(continuityLabel),
+    progressLabel: deriveWorkspaceProgress(context),
     nextSuggestedStep,
   };
 }
@@ -254,11 +254,11 @@ function buildOperationsFeed(
 
   if (!savedAt) {
     items.push({
-      title: "Start this workspace",
-      body: "Capture one concrete task, source, or plan so Mate-E can start carrying this workspace forward.",
+      title: "Capture your first note",
+      body: "This workspace is empty.",
       tone: "amber",
       href: "/app/workspace/whiteboard",
-      cta: "Open Capture",
+      cta: "Start Capture",
       score: 95,
     });
   }
@@ -270,16 +270,22 @@ function buildOperationsFeed(
     const boardScore = Math.min(96, 28 + Math.round(boardAgeDays * 8) + Math.min(18, boardComplexity));
     items.push({
       title: context.whiteboardReference.noteCount > 0
-        ? `Continue ${truncateText(context.whiteboardReference.workspaceGoal || context.whiteboardReference.boardName || "workspace", 36)}`
-        : `Capture new ideas`,
+        ? context.whiteboardReference.workspaceGoal
+          ? `Continue ${truncateText(context.whiteboardReference.workspaceGoal, 36)}`
+          : "Define the first workspace objective"
+        : "Capture your first note",
       body: staleBoard
         ? `This workspace has been idle since ${formatRelativeTime(context.whiteboardReference.updatedAt)}. Reopen it and decide what should move first.`
         : context.whiteboardReference.noteCount > 0
-          ? `The current workspace still needs a clearer structure so the next move is obvious.`
+          ? context.whiteboardReference.workspaceGoal
+            ? `The current workspace still needs a clearer structure so the next move is obvious.`
+            : `This workspace needs a clear objective before the next step will make sense.`
           : `No notes have been captured yet for this workspace.`,
       tone: staleBoard ? "amber" : "emerald",
       href: "/app/workspace/whiteboard",
-      cta: context.whiteboardReference.noteCount > 0 ? "Open Capture" : "Start Capture",
+      cta: context.whiteboardReference.noteCount > 0
+        ? context.whiteboardReference.workspaceGoal ? "Continue working" : "Define objective"
+        : "Start Capture",
       score: boardScore,
     });
   }
@@ -295,7 +301,7 @@ function buildOperationsFeed(
         : "The active presentation is already in motion. Tighten the next section while the thread is still fresh.",
       tone: thinOutline ? "amber" : "sky",
       href: "/app/workspace/presentations",
-      cta: "Continue",
+      cta: thinOutline ? "Continue working" : "Continue working",
       score: presentationScore,
     });
   }
@@ -304,16 +310,16 @@ function buildOperationsFeed(
     const lowConfidenceScore = Math.min(94, 36 + lowConfidenceRuns * 14);
     items.push({
       title: context?.presentationReference?.title
-        ? `Review ${truncateText(context.presentationReference.title, 36)}`
+        ? `Clarify ${truncateText(context.presentationReference.title, 36)}`
         : context?.weakConcepts?.[0]
           ? `Clarify ${truncateText(context.weakConcepts[0], 36)}`
-          : `Continue ${truncateText(deriveWorkspaceName(context), 36)}`,
+          : "Define the next workspace step",
       body: context?.presentationReference?.title
         ? "Confidence dropped around the active presentation, so the fastest win is to clarify what the deck is trying to accomplish."
         : "The last session ended without a clear next move, so resolve the unclear part before you widen scope again.",
       tone: "violet",
       href: context?.presentationReference?.title ? "/app/workspace/presentations" : buildWorkspaceChatHref("Help me review the recent low-confidence work and turn it into one clear next step.", "Low-confidence runs should become one bounded action."),
-      cta: context?.presentationReference?.title ? "Review now" : "Resolve now",
+      cta: context?.presentationReference?.title ? "Continue working" : "Define next step",
       score: lowConfidenceScore,
     });
   }
@@ -324,13 +330,15 @@ function buildOperationsFeed(
     items.push({
       title: context?.presentationReference?.title
         ? `Continue ${truncateText(context.presentationReference.title, 36)}`
-        : `Continue ${truncateText(deriveWorkspaceName(context), 36)}`,
+        : deriveWorkspaceName(context) === "Empty workspace"
+          ? "Capture your first note"
+          : `Continue ${truncateText(deriveWorkspaceName(context), 36)}`,
       body: latest.role === "assistant"
         ? truncateText(latest.content, 140)
         : `Last session ended with ${truncateText(latest.content, 120)}`,
       tone: "sky",
       href: "/app/workspace?workspaceMode=instructional-chat",
-      cta: "Continue",
+      cta: "Continue working",
       score: Math.max(22, 58 - Math.round(tutorAgeDays * 9)),
     });
   }
@@ -341,7 +349,7 @@ function buildOperationsFeed(
       body: "Recent work exists, but the next step is still not clear. Tighten this workspace until one action stands out.",
       tone: "amber",
       href: "/app/workspace/operations",
-      cta: "Review now",
+      cta: "Create plan",
       score: 74,
     });
   }
@@ -359,7 +367,7 @@ function buildFocusQueue(context: WorkspaceContext | null, lowConfidenceRuns: nu
       title: `Clarify: ${truncateText(context.whiteboardReference.workspaceGoal, 52)}`,
       detail: "Your board already has an active focus. Convert that into a cleaner execution model, dependency map, or decision-ready structure.",
       href: "/app/workspace/whiteboard",
-      cta: "Continue board",
+      cta: "Continue working",
     });
   }
 
@@ -368,7 +376,7 @@ function buildFocusQueue(context: WorkspaceContext | null, lowConfidenceRuns: nu
       title: `Advance ${truncateText(context.presentationReference.title, 44)}`,
       detail: "Presentations are often the forcing function for clearer narrative, sequencing, and decision communication. Tighten the active draft next.",
       href: "/app/workspace/presentations",
-      cta: "Open draft",
+      cta: "Continue working",
     });
   }
 
@@ -401,7 +409,7 @@ function buildFocusQueue(context: WorkspaceContext | null, lowConfidenceRuns: nu
       title: "Start a new workspace",
       detail: "The fastest way to make Mate-E useful is to seed one active workspace you can reopen tomorrow.",
       href: "/app/workspace/operations",
-      cta: "Start operations",
+      cta: "New workspace",
     });
   }
 
@@ -449,15 +457,104 @@ function deriveWorkspaceName(context: WorkspaceContext | null) {
     || context?.weakConcepts?.[0]
     || null;
 
-  if (!preferred) return "Current workspace";
+  if (!preferred) return "Empty workspace";
 
   const trimmed = preferred.trim();
-  if (!trimmed) return "Current workspace";
+  if (!trimmed) return "Empty workspace";
   if (/^untitled$/i.test(trimmed) || /^untitled workspace$/i.test(trimmed) || /^board$/i.test(trimmed)) {
-    return "Current workspace";
+    return "Empty workspace";
   }
 
   return trimmed;
+}
+
+function deriveWorkspaceProgress(context: WorkspaceContext | null) {
+  const board = context?.whiteboardReference;
+  const presentation = context?.presentationReference;
+
+  if (presentation?.title) {
+    return presentation.outlineCount < 4 ? "Getting started" : "In progress";
+  }
+
+  if (!board) return "Getting started";
+
+  const totalMarks = board.noteCount + board.shapeCount + board.annotationCount;
+  if (totalMarks === 0) return "Getting started";
+  if (!board.workspaceGoal) return "Defining scope";
+  return "In progress";
+}
+
+function buildFallbackPrimaryAction(
+  context: WorkspaceContext | null,
+  runs: RecentRunSummary[]
+): FocusQueueItem {
+  const board = context?.whiteboardReference;
+  const presentation = context?.presentationReference;
+
+  if (presentation?.title) {
+    return {
+      title: presentation.outlineCount < 4
+        ? `Clarify learning objectives for ${truncateText(presentation.title, 40)}`
+        : `Continue ${truncateText(presentation.title, 40)}`,
+      detail: presentation.outlineCount < 4
+        ? "The presentation still needs a clear objective before the next section is worth refining."
+        : "Keep refining the active presentation while the structure is still fresh.",
+      href: "/app/workspace/presentations",
+      cta: "Continue working",
+    };
+  }
+
+  if (!board) {
+    return {
+      title: "Capture your first note",
+      detail: "This workspace is empty.",
+      href: "/app/workspace/whiteboard",
+      cta: "Start Capture",
+    };
+  }
+
+  const totalMarks = board.noteCount + board.shapeCount + board.annotationCount;
+  if (totalMarks === 0) {
+    return {
+      title: "Capture your first note",
+      detail: "This workspace is empty.",
+      href: "/app/workspace/whiteboard",
+      cta: "Start Capture",
+    };
+  }
+
+  if (!board.workspaceGoal) {
+    return {
+      title: "Define the first workspace objective",
+      detail: "This workspace needs a clear objective before the next step will make sense.",
+      href: "/app/workspace/whiteboard",
+      cta: "Define objective",
+    };
+  }
+
+  if (runs[0]?.title) {
+    return {
+      title: truncateText(runs[0].title, 52),
+      detail: "Stay with the current project instead of switching contexts now.",
+      href: "/app/workspace/whiteboard",
+      cta: "Continue working",
+    };
+  }
+
+  return {
+    title: `Continue ${truncateText(board.workspaceGoal, 40)}`,
+    detail: "Keep moving the active workspace while the current decisions are still fresh.",
+    href: "/app/workspace/whiteboard",
+    cta: "Continue working",
+  };
+}
+
+function compactActionLabel(title: string, cta: string) {
+  if (/capture/i.test(title) || /capture/i.test(cta)) return "Capture";
+  if (/new workspace/i.test(title) || /new workspace/i.test(cta)) return "New workspace";
+  if (/plan/i.test(title) || /plan/i.test(cta) || /operations/i.test(cta)) return "Create plan";
+  if (/clarify/i.test(title)) return title;
+  return cta;
 }
 
 function trimUpdatedLabel(value: string) {
