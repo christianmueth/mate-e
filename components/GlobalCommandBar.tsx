@@ -60,7 +60,7 @@ export default function GlobalCommandBar() {
     if (pathname.startsWith("/app/workspace/presentations") && workspaceContext.presentationReference?.title) {
       return `Try: sharpen the narrative and decision framing for ${workspaceContext.presentationReference.title}`;
     }
-    if (pathname.startsWith("/app/progress") && workspaceContext.weakConcepts[0]) {
+    if (pathname === "/app/workspace" && workspaceContext.weakConcepts[0]) {
       return `Try: explain the drift around ${workspaceContext.weakConcepts[0]} and recommend a recovery step`;
     }
     const latestTutorInteraction = workspaceContext.recentTutorInteractions[workspaceContext.recentTutorInteractions.length - 1];

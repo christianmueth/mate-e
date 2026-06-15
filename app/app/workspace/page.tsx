@@ -63,6 +63,13 @@ type WorkspaceMemoryCard = {
   nextSuggestedStep: string;
 };
 
+type ExecuteProgressSnapshot = {
+  headline: string;
+  changed: string;
+  watch: string;
+  next: string;
+};
+
 export default async function WorkspacePage() {
   const authResult = await auth().catch(() => null);
   const clerkUserId = authResult?.userId ?? null;
@@ -72,13 +79,27 @@ export default async function WorkspacePage() {
 
   let userRecord = await prisma.user.findFirst({
     where: { clerkUserId },
-    select: { id: true },
+    select: {
+      id: true,
+      xp: true,
+      studyStreak: true,
+      xpToday: true,
+      xpTodayDate: true,
+      dailyGoal: true,
+    },
   });
 
   if (!userRecord) {
     userRecord = await prisma.user.create({
       data: { clerkUserId },
-      select: { id: true },
+      select: {
+        id: true,
+        xp: true,
+        studyStreak: true,
+        xpToday: true,
+        xpTodayDate: true,
+        dailyGoal: true,
+      },
     });
   }
 
@@ -145,6 +166,9 @@ export default async function WorkspacePage() {
     href: "/app/workspace/whiteboard",
     cta: "Start working",
   };
+  const progressSnapshot = buildExecuteProgressSnapshot(workspaceContext, recentRuns, analytics.lowConfidenceRuns, primaryAction.title);
+  const confidenceSeries = buildConfidenceSeries(recentRuns);
+  const xpToday = getXpToday(userRecord.xpToday, userRecord.xpTodayDate);
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-8 p-6">
@@ -189,7 +213,14 @@ export default async function WorkspacePage() {
         ) : null}
       </section>
 
-      <section>
+      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <ExecuteMetricCard label="Streak" value={`${userRecord.studyStreak}d`} detail={memoryCard.lastActive} />
+        <ExecuteMetricCard label="Today" value={`${xpToday}/${userRecord.dailyGoal}`} detail={xpToday >= userRecord.dailyGoal ? "Target hit" : `${Math.max(0, userRecord.dailyGoal - xpToday)} left`} />
+        <ExecuteMetricCard label="Signals" value={String(analytics.totalRuns)} detail={`${analytics.lowConfidenceRuns} low-confidence`} />
+        <ExecuteMetricCard label="Confidence" value={`${Math.round(analytics.averageConfidence * 100)}%`} detail={`${analytics.verificationRuns} verified`} />
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
         <article className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace memory</p>
           <div className="mt-5 space-y-4 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
@@ -202,13 +233,74 @@ export default async function WorkspacePage() {
               <p className="mt-1 text-sm leading-6 text-slate-700">{memoryCard.youWere}</p>
             </div>
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Next suggested step</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Next</p>
               <p className="mt-1 text-sm leading-6 text-slate-700">{memoryCard.nextSuggestedStep}</p>
             </div>
           </div>
         </article>
+
+        <article className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Progress</p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{progressSnapshot.headline}</h2>
+            </div>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+              {confidenceSeries.length ? `Avg ${Math.round(analytics.averageConfidence * 100)}%` : "No runs yet"}
+            </span>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <div className="rounded-[1.25rem] border border-emerald-100 bg-emerald-50/70 p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700">Changed</p>
+              <p className="mt-2 text-sm leading-6 text-slate-700">{progressSnapshot.changed}</p>
+            </div>
+            <div className="rounded-[1.25rem] border border-amber-100 bg-amber-50/80 p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700">Watch</p>
+              <p className="mt-2 text-sm leading-6 text-slate-700">{progressSnapshot.watch}</p>
+            </div>
+            <div className="rounded-[1.25rem] border border-sky-100 bg-sky-50/80 p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-700">Next</p>
+              <p className="mt-2 text-sm leading-6 text-slate-700">{progressSnapshot.next}</p>
+            </div>
+          </div>
+
+          {confidenceSeries.length ? (
+            <div className="mt-5 flex items-end gap-3">
+              {confidenceSeries.map((point) => (
+                <div key={point.label} className="flex flex-1 flex-col items-center gap-2">
+                  <div className="flex h-24 w-full items-end rounded-2xl bg-slate-50 px-2 pb-2">
+                    <div
+                      className="w-full rounded-xl bg-gradient-to-t from-slate-900 to-cyan-500"
+                      style={{ height: `${Math.max(10, Math.round(point.value * 100))}%` }}
+                    />
+                  </div>
+                  <span className="text-xs text-slate-500">{point.label}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </article>
       </section>
     </div>
+  );
+}
+
+function ExecuteMetricCard({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail: string;
+}) {
+  return (
+    <article className="rounded-[1.35rem] border border-slate-200 bg-white px-4 py-4 shadow-sm">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+      <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
+      <p className="mt-1 text-sm text-slate-600">{detail}</p>
+    </article>
   );
 }
 
@@ -296,10 +388,10 @@ function buildOperationsFeed(
     const lowConfidenceScore = Math.min(94, 36 + lowConfidenceRuns * 14);
     items.push({
       title: `${lowConfidenceRuns} recent low-confidence run${lowConfidenceRuns === 1 ? "" : "s"}`,
-      body: "Recent analysis confidence dipped below the stable threshold. Review the progress read and turn the weak thread into a deliberate next action before drift compounds.",
+      body: "Recent analysis confidence dipped below the stable threshold. Turn the weak thread into one bounded next step before drift compounds.",
       tone: "violet",
-      href: "/app/progress",
-      cta: "Review progress",
+      href: buildWorkspaceChatHref("Help me review the recent low-confidence work and turn it into one clear next step.", "Low-confidence runs should become one bounded action."),
+      cta: "Stabilize thread",
       score: lowConfidenceScore,
     });
   }
@@ -367,8 +459,8 @@ function buildFocusQueue(context: WorkspaceContext | null, lowConfidenceRuns: nu
     items.push({
       title: "Stabilize the recent analysis loop",
       detail: `There ${lowConfidenceRuns === 1 ? "was" : "were"} ${lowConfidenceRuns} low-confidence run${lowConfidenceRuns === 1 ? "" : "s"} recently. Review why confidence dipped and lock in the next bounded action.`,
-      href: "/app/progress",
-      cta: "Inspect runs",
+      href: buildWorkspaceChatHref("Help me stabilize the recent low-confidence work and choose the next bounded action.", "Use the execute read to keep the current thread stable."),
+      cta: "Stabilize thread",
     });
   }
 
@@ -395,6 +487,63 @@ function formatRelativeTime(value: string | Date) {
   if (diffDays < 7) return `Updated ${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
   const diffWeeks = Math.floor(diffDays / 7);
   return `Updated ${diffWeeks} week${diffWeeks === 1 ? "" : "s"} ago`;
+}
+
+function buildConfidenceSeries(runs: RecentRunSummary[]) {
+  return runs
+    .slice(0, 6)
+    .reverse()
+    .map((run, index) => ({
+      label: `S${index + 1}`,
+      value: clampUnit(run.confidence ?? 0),
+    }));
+}
+
+function buildExecuteProgressSnapshot(
+  context: WorkspaceContext | null,
+  runs: RecentRunSummary[],
+  lowConfidenceRuns: number,
+  nextStepLabel: string
+): ExecuteProgressSnapshot {
+  const latestRun = runs[0] ?? null;
+  const activeThread = context?.whiteboardReference?.workspaceGoal
+    || context?.presentationReference?.title
+    || context?.weakConcepts?.[0]
+    || "current thread";
+  const confidence = latestRun?.confidence ?? null;
+  const confidenceLabel = confidence === null ? null : `${Math.round(clampUnit(confidence) * 100)}% confidence`;
+  const headline = lowConfidenceRuns > 0
+    ? "The current thread still needs a tighter recovery pass."
+    : latestRun
+      ? `${truncateText(activeThread, 56)} is the live thread.`
+      : "Execute now carries the current progress read.";
+
+  return {
+    headline,
+    changed: latestRun
+      ? `${latestRun.title || "Recent work"} landed ${confidenceLabel || "with an incomplete confidence read"}.`
+      : "Your first runs will start shaping a continuity trail here.",
+    watch: lowConfidenceRuns > 0
+      ? `${lowConfidenceRuns} recent run${lowConfidenceRuns === 1 ? "" : "s"} dipped below the stable threshold.`
+      : context?.weakConcepts?.[0]
+        ? `${truncateText(context.weakConcepts[0], 92)} is still the weakest thread in memory.`
+        : "No repeated drift is dominating the recent history.",
+    next: nextStepLabel,
+  };
+}
+
+function getXpToday(value: number, date: Date | null) {
+  if (!date) return 0;
+  const now = new Date();
+  const sameDay = date.getUTCFullYear() === now.getUTCFullYear()
+    && date.getUTCMonth() === now.getUTCMonth()
+    && date.getUTCDate() === now.getUTCDate();
+  return sameDay ? value : 0;
+}
+
+function clampUnit(value: number) {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.min(1, value));
 }
 
 function isOlderThanDays(value: string, days: number) {

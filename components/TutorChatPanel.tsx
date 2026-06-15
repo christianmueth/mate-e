@@ -383,7 +383,7 @@ function buildSummaryLabel({
   deckId: string | null;
   deckTitle: string | null;
 }) {
-  if (pathname === "/app/progress") return "progress view";
+  if (pathname === "/app/workspace") return "execute";
   if (deckId) return deckTitle || "current workspace set";
   return "workspace";
 }
