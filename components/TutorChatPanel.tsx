@@ -242,7 +242,7 @@ export default function TutorChatPanel() {
 
   const summaryLabel = buildSummaryLabel({ pathname, deckId, deckTitle: context?.deckTitle ?? null });
   const latestAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant") ?? null;
-  const recommendation = useMemo(() => buildRecommendationCard({
+  const recommendation = buildRecommendationCard({
     pathname,
     summaryLabel,
     workspaceState,
@@ -250,7 +250,7 @@ export default function TutorChatPanel() {
     deckTitle: context?.deckTitle ?? null,
     focusConcept,
     focusReason,
-  }), [context, focusConcept, focusReason, pathname, summaryLabel, workspaceState]);
+  });
 
   async function submitMessage(prefill?: string) {
     const content = (prefill ?? draft).trim();
