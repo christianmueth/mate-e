@@ -2,7 +2,7 @@ import Link from "next/link";
 
 const items = [
   {
-    href: "/app/workspace#capture",
+    href: "/app/workspace/whiteboard",
     label: "Capture",
     matches: ["/app/workspace/whiteboard"],
   },

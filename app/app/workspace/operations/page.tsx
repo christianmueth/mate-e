@@ -34,19 +34,20 @@ export default async function WorkspaceOperationsPage({
 
       <section className="rounded-[2rem] border border-cyan-200 bg-gradient-to-br from-cyan-50 via-white to-sky-50 p-7 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-800">Organize</p>
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">Turn captured work into plans, sprints, and structure.</h1>
-        <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-700">This is the organizing layer for Mate-E. Convert notes, boards, and source material into execution plans, sprint structures, task systems, and risk maps without changing the underlying routes yet.</p>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Link href="/app/workspace?workspaceMode=instructional-chat&starterPrompt=Help%20me%20turn%20this%20workspace%20into%20an%20operational%20system%20with%20owners%2C%20milestones%2C%20dependencies%2C%20and%20risks.&reason=Operations%20should%20generate%20structured%20execution%20artifacts%20from%20shared%20workspace%20context." className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
-            Ask Mate-E to organize this
-          </Link>
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">Help me make a plan.</h1>
+        <div className="mt-6 flex flex-wrap gap-2 text-sm text-slate-700">
+          <span className="rounded-full border border-cyan-200 bg-white px-3 py-1.5">Launch Android app</span>
+          <span className="rounded-full border border-cyan-200 bg-white px-3 py-1.5">Build XR demo</span>
+          <span className="rounded-full border border-cyan-200 bg-white px-3 py-1.5">Create study roadmap</span>
+        </div>
+        <div className="mt-6">
           <Link href="/app/workspace" className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-900 hover:bg-white">
             Back to Execute
           </Link>
         </div>
       </section>
 
-      <WorkspaceOperationsConsole initialBuilder={initialBuilder} initialState={initialState} />
+      <WorkspaceOperationsConsole initialBuilder={initialBuilder} initialState={initialState} simpleMode />
     </div>
   );
 }

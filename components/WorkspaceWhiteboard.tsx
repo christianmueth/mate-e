@@ -2441,8 +2441,7 @@ export default function WorkspaceWhiteboard() {
                 <div className="flex h-full flex-col">
                 <div className="flex items-center justify-between gap-3">
                   <div className="px-4 pt-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700">Workspace Copilot</p>
-                    <p className="mt-1 text-sm text-slate-600">Ambient board intelligence, continuity memory, and actions for this workspace.</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700">Copilot</p>
                   </div>
                   <button type="button" onClick={() => setShowCopilot(false)} className="mr-4 mt-4 rounded-full border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
                     Hide
@@ -2451,7 +2450,6 @@ export default function WorkspaceWhiteboard() {
 
                 <div className={isCompactViewport ? "max-h-[60vh] flex-1 space-y-4 overflow-y-auto px-4 pb-4" : "flex-1 space-y-4 overflow-y-auto px-4 pb-4"}>
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">AI observations</p>
                     <div className="mt-3 space-y-2">
                       {copilotObservations.map((observation) => (
                         <div key={observation} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-700">
@@ -2463,7 +2461,6 @@ export default function WorkspaceWhiteboard() {
 
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Workspace memory</p>
                       <button type="button" onClick={() => window.location.assign(workspaceChatHref)} className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
                         Open chat
                       </button>
@@ -2473,16 +2470,11 @@ export default function WorkspaceWhiteboard() {
                         <div key={item} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-700">
                           {item}
                         </div>
-                      )) : (
-                        <div className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-700">
-                          Copilot will start building continuity memory as you sketch, annotate, and use workspace chat.
-                        </div>
-                      )}
+                      )) : null}
                     </div>
                   </div>
 
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Quick actions</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {[
                         ["clean-sketch", "Clean layout"],
@@ -2502,20 +2494,18 @@ export default function WorkspaceWhiteboard() {
                       ))}
                     </div>
                     <label className="mt-4 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                      Canvas focus
                       <input
                         value={workspaceGoal}
                         onChange={(event) => setWorkspaceGoal(event.target.value)}
-                        placeholder="What are you trying to map, explain, or plan?"
+                        placeholder="Focus"
                         className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-slate-900"
                       />
                     </label>
                     <label className="mt-3 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                      Note or AI prompt
                       <textarea
                         value={annotationDraft}
                         onChange={(event) => setAnnotationDraft(event.target.value)}
-                        placeholder="Drop a note, capture a blocker, ask Copilot what structure belongs here, or describe an image to generate onto the board."
+                        placeholder="Prompt"
                         className="mt-2 min-h-[88px] w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm font-normal text-slate-900 outline-none focus:border-slate-900"
                       />
                     </label>
@@ -2545,7 +2535,6 @@ export default function WorkspaceWhiteboard() {
                           Apply
                         </button>
                       </div>
-                      <p className="mt-2 text-sm leading-6 text-slate-700">{assistSuggestion.summary}</p>
                       <div className="mt-3 flex flex-wrap gap-2">
                         <button type="button" onClick={() => setShowOverlayGuide((current) => !current)} className="rounded-full border border-slate-300 px-3 py-1 text-xs font-medium text-slate-900 hover:bg-white">
                           {showOverlayGuide ? "Hide guide" : "Show guide"}
@@ -2588,7 +2577,7 @@ export default function WorkspaceWhiteboard() {
                 ? "absolute bottom-24 right-3 z-20 rounded-full border border-cyan-300 bg-white/95 px-4 py-2 text-sm font-medium text-cyan-950 shadow-lg backdrop-blur hover:bg-white"
                 : "absolute bottom-4 right-4 z-20 rounded-full border border-cyan-300 bg-white/90 px-4 py-2 text-sm font-medium text-cyan-950 shadow-lg backdrop-blur hover:bg-white md:bottom-6 md:right-6"
               }>
-                Open Workspace Copilot
+                Copilot
               </button>
             )}
 

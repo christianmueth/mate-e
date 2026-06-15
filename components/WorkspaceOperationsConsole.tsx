@@ -152,23 +152,27 @@ const initialState: BuildState = {
 type WorkspaceOperationsConsoleProps = {
   initialBuilder?: BuilderId;
   initialState?: Partial<BuildState>;
+  simpleMode?: boolean;
 };
 
 export default function WorkspaceOperationsConsole({
   initialBuilder = "execution-plan",
   initialState: seededState,
+  simpleMode = false,
 }: WorkspaceOperationsConsoleProps) {
   const router = useRouter();
   const seededStateKey = JSON.stringify(seededState ?? {});
-  const normalizedInitialBuilder = isBuilderId(initialBuilder) ? initialBuilder : "execution-plan";
-  const normalizedInitialState = useMemo(() => normalizeBuildState(seededState), [seededStateKey]);
+  const normalizedInitialBuilder = simpleMode ? "execution-plan" : isBuilderId(initialBuilder) ? initialBuilder : "execution-plan";
+  const normalizedInitialState = useMemo(() => normalizeBuildState(seededState, simpleMode), [seededStateKey, simpleMode]);
   const [activeBuilder, setActiveBuilder] = useState<BuilderId>(normalizedInitialBuilder);
   const [state, setState] = useState<BuildState>(normalizedInitialState);
+  const [hasGenerated, setHasGenerated] = useState(Boolean(normalizedInitialState.objective.trim()));
   const activeBuilderConfig = builders.find((builder) => builder.id === activeBuilder) ?? builders[0];
 
   useEffect(() => {
     setActiveBuilder(normalizedInitialBuilder);
     setState(normalizedInitialState);
+    setHasGenerated(Boolean(normalizedInitialState.objective.trim()));
   }, [normalizedInitialBuilder, normalizedInitialState]);
 
   const artifact = useMemo(() => buildArtifact(activeBuilder, state), [activeBuilder, state]);
@@ -176,151 +180,204 @@ export default function WorkspaceOperationsConsole({
   const chatHref = useMemo(() => buildWorkspaceChatHref(activeBuilder, state, artifact), [activeBuilder, artifact, state]);
 
   function updateField<K extends keyof BuildState>(key: K, value: BuildState[K]) {
+    if (simpleMode) {
+      setHasGenerated(false);
+    }
     setState((current) => ({ ...current, [key]: value }));
   }
 
+  function handlePrimaryAction() {
+    if (!simpleMode) {
+      router.push(chatHref);
+      return;
+    }
+
+    const objective = state.objective.trim();
+    if (!objective) return;
+
+    setActiveBuilder("execution-plan");
+    setState((current) => ({
+      ...current,
+      objective,
+      sourceMaterial: current.sourceMaterial.trim() || objective,
+      deliverables: current.deliverables.trim() || "Milestones, tasks, risks, and timeline",
+    }));
+    setHasGenerated(true);
+  }
+
+  const shouldShowArtifact = simpleMode ? hasGenerated && artifact.ready : artifact.ready;
+
   return (
-    <section className={artifact.ready ? "grid gap-5 xl:grid-cols-[0.86fr_1.14fr]" : "grid gap-5"}>
+    <section className={shouldShowArtifact ? "grid gap-5 xl:grid-cols-[0.86fr_1.14fr]" : "grid gap-5"}>
       <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Organize</p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {builders.map((builder) => {
-            const active = builder.id === activeBuilder;
-            return (
-              <button
-                key={builder.id}
-                type="button"
-                onClick={() => setActiveBuilder(builder.id)}
-                className={active
-                  ? "rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white"
-                  : "rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50"
-                }
-              >
-                {builder.label}
-              </button>
-            );
-          })}
-        </div>
+        {simpleMode ? null : (
+          <div className="mt-4 flex flex-wrap gap-2">
+            {builders.map((builder) => {
+              const active = builder.id === activeBuilder;
+              return (
+                <button
+                  key={builder.id}
+                  type="button"
+                  onClick={() => setActiveBuilder(builder.id)}
+                  className={active
+                    ? "rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white"
+                    : "rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50"
+                  }
+                >
+                  {builder.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         <div className="mt-5 rounded-3xl border border-slate-200 bg-slate-50 p-4">
-          <h2 className="text-xl font-semibold text-slate-950">{activeBuilderConfig.title}</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-700">{activeBuilderConfig.subtitle}</p>
+          <h2 className="text-xl font-semibold text-slate-950">{simpleMode ? "What are we planning?" : activeBuilderConfig.title}</h2>
+          {simpleMode ? null : <p className="mt-2 text-sm leading-6 text-slate-700">{activeBuilderConfig.subtitle}</p>}
 
-          <div className="mt-4 rounded-3xl border border-cyan-200 bg-cyan-50/70 p-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-900">Mate-E organizing read</p>
-            <div className="mt-3 grid gap-3 md:grid-cols-2">
-              {signals.map((signal) => (
-                <div key={signal.label} className="rounded-2xl border border-cyan-200 bg-white/90 px-3 py-3">
-                  <p className="text-sm font-semibold text-slate-950">{signal.label}</p>
-                  <p className="mt-1 text-sm leading-6 text-slate-700">{signal.body}</p>
-                </div>
-              ))}
+          {simpleMode ? null : (
+            <div className="mt-4 rounded-3xl border border-cyan-200 bg-cyan-50/70 p-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-900">Mate-E organizing read</p>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                {signals.map((signal) => (
+                  <div key={signal.label} className="rounded-2xl border border-cyan-200 bg-white/90 px-3 py-3">
+                    <p className="text-sm font-semibold text-slate-950">{signal.label}</p>
+                    <p className="mt-1 text-sm leading-6 text-slate-700">{signal.body}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="mt-5 grid gap-4">
             <label className="block text-sm font-medium text-slate-800">
-              Objective
-              <input
-                value={state.objective}
-                onChange={(event) => updateField("objective", event.target.value)}
-                placeholder="Launch the migration workflow before the quarter closes"
-                className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
-              />
-            </label>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block text-sm font-medium text-slate-800">
-                Deadline or timeframe
+              {simpleMode ? "What are we planning?" : "Objective"}
+              {simpleMode ? (
+                <textarea
+                  value={state.objective}
+                  onChange={(event) => updateField("objective", event.target.value)}
+                  placeholder="Launch Android app"
+                  className="mt-2 min-h-[104px] w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
+                />
+              ) : (
                 <input
-                  value={state.deadline}
-                  onChange={(event) => updateField("deadline", event.target.value)}
-                  placeholder="June 28"
+                  value={state.objective}
+                  onChange={(event) => updateField("objective", event.target.value)}
+                  placeholder="Launch the migration workflow before the quarter closes"
                   className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
                 />
-              </label>
+              )}
+            </label>
+
+            {simpleMode ? (
               <label className="block text-sm font-medium text-slate-800">
-                Team size
-                <input
-                  value={state.teamSize}
-                  onChange={(event) => updateField("teamSize", event.target.value)}
-                  placeholder="5"
-                  className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
+                <textarea
+                  value={state.sourceMaterial}
+                  onChange={(event) => updateField("sourceMaterial", event.target.value)}
+                  placeholder="Context"
+                  className="mt-2 min-h-[128px] w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
                 />
               </label>
-            </div>
+            ) : (
+              <>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block text-sm font-medium text-slate-800">
+                    Deadline or timeframe
+                    <input
+                      value={state.deadline}
+                      onChange={(event) => updateField("deadline", event.target.value)}
+                      placeholder="June 28"
+                      className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
+                    />
+                  </label>
+                  <label className="block text-sm font-medium text-slate-800">
+                    Team size
+                    <input
+                      value={state.teamSize}
+                      onChange={(event) => updateField("teamSize", event.target.value)}
+                      placeholder="5"
+                      className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
+                    />
+                  </label>
+                </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block text-sm font-medium text-slate-800">
-                Sprint length
-                <select
-                  value={state.sprintLength}
-                  onChange={(event) => updateField("sprintLength", event.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
-                >
-                  <option value="1 week">1 week</option>
-                  <option value="2 weeks">2 weeks</option>
-                  <option value="3 weeks">3 weeks</option>
-                  <option value="4 weeks">4 weeks</option>
-                </select>
-              </label>
-              <label className="block text-sm font-medium text-slate-800">
-                Owners or functions
-                <input
-                  value={state.owners}
-                  onChange={(event) => updateField("owners", event.target.value)}
-                  placeholder="Product, Design, Frontend, Backend"
-                  className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
-                />
-              </label>
-            </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="block text-sm font-medium text-slate-800">
+                    Sprint length
+                    <select
+                      value={state.sprintLength}
+                      onChange={(event) => updateField("sprintLength", event.target.value)}
+                      className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
+                    >
+                      <option value="1 week">1 week</option>
+                      <option value="2 weeks">2 weeks</option>
+                      <option value="3 weeks">3 weeks</option>
+                      <option value="4 weeks">4 weeks</option>
+                    </select>
+                  </label>
+                  <label className="block text-sm font-medium text-slate-800">
+                    Owners or functions
+                    <input
+                      value={state.owners}
+                      onChange={(event) => updateField("owners", event.target.value)}
+                      placeholder="Product, Design, Frontend, Backend"
+                      className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
+                    />
+                  </label>
+                </div>
 
-            <label className="block text-sm font-medium text-slate-800">
-              Deliverables
-              <textarea
-                value={state.deliverables}
-                onChange={(event) => updateField("deliverables", event.target.value)}
-                placeholder="Migration checklist, owner matrix, launch brief, rollout notes"
-                className="mt-2 min-h-[96px] w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
-              />
-            </label>
+                <label className="block text-sm font-medium text-slate-800">
+                  Deliverables
+                  <textarea
+                    value={state.deliverables}
+                    onChange={(event) => updateField("deliverables", event.target.value)}
+                    placeholder="Migration checklist, owner matrix, launch brief, rollout notes"
+                    className="mt-2 min-h-[96px] w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
+                  />
+                </label>
 
-            <label className="block text-sm font-medium text-slate-800">
-              Constraints and blockers
-              <textarea
-                value={state.constraints}
-                onChange={(event) => updateField("constraints", event.target.value)}
-                placeholder="Vendor signoff pending, legal review, fixed rollout date, limited backend capacity"
-                className="mt-2 min-h-[96px] w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
-              />
-            </label>
+                <label className="block text-sm font-medium text-slate-800">
+                  Constraints and blockers
+                  <textarea
+                    value={state.constraints}
+                    onChange={(event) => updateField("constraints", event.target.value)}
+                    placeholder="Vendor signoff pending, legal review, fixed rollout date, limited backend capacity"
+                    className="mt-2 min-h-[96px] w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
+                  />
+                </label>
 
-            <label className="block text-sm font-medium text-slate-800">
-              Source notes, meetings, or docs
-              <textarea
-                value={state.sourceMaterial}
-                onChange={(event) => updateField("sourceMaterial", event.target.value)}
-                placeholder="Paste meeting notes, whiteboard summaries, or document fragments that should feed the operational surface"
-                className="mt-2 min-h-[128px] w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
-              />
-            </label>
+                <label className="block text-sm font-medium text-slate-800">
+                  Source notes, meetings, or docs
+                  <textarea
+                    value={state.sourceMaterial}
+                    onChange={(event) => updateField("sourceMaterial", event.target.value)}
+                    placeholder="Paste meeting notes, whiteboard summaries, or document fragments that should feed the operational surface"
+                    className="mt-2 min-h-[128px] w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
+                  />
+                </label>
+              </>
+            )}
           </div>
 
           <div className="mt-5 flex flex-wrap gap-3">
             <button
               type="button"
-              onClick={() => router.push(chatHref)}
-              disabled={!artifact.ready}
-              className={artifact.ready
+              onClick={handlePrimaryAction}
+              disabled={simpleMode ? !state.objective.trim() : !artifact.ready}
+              className={(simpleMode ? state.objective.trim().length > 0 : artifact.ready)
                 ? "rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
                 : "rounded-full bg-slate-300 px-4 py-2 text-sm font-medium text-slate-600"
               }
             >
-              {artifact.primaryCta}
+              {simpleMode ? "Generate plan" : artifact.primaryCta}
             </button>
             <button
               type="button"
-              onClick={() => setState(initialState)}
+              onClick={() => {
+                setState(normalizedInitialState);
+                setHasGenerated(Boolean(normalizedInitialState.objective.trim()));
+              }}
               className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50"
             >
               Reset inputs
@@ -329,7 +386,7 @@ export default function WorkspaceOperationsConsole({
         </div>
       </div>
 
-      {artifact.ready ? <BuilderSurface artifact={artifact} /> : null}
+      {shouldShowArtifact ? <BuilderSurface artifact={artifact as Exclude<BuilderArtifact, EmptyArtifact>} /> : null}
     </section>
   );
 }
@@ -338,8 +395,8 @@ function isBuilderId(value: string): value is BuilderId {
   return builders.some((builder) => builder.id === value);
 }
 
-function normalizeBuildState(value?: Partial<BuildState>) {
-  return {
+function normalizeBuildState(value?: Partial<BuildState>, simpleMode = false) {
+  const normalized = {
     ...initialState,
     objective: typeof value?.objective === "string" ? value.objective : initialState.objective,
     deadline: typeof value?.deadline === "string" ? value.deadline : initialState.deadline,
@@ -349,6 +406,15 @@ function normalizeBuildState(value?: Partial<BuildState>) {
     sourceMaterial: typeof value?.sourceMaterial === "string" ? value.sourceMaterial : initialState.sourceMaterial,
     sprintLength: typeof value?.sprintLength === "string" ? value.sprintLength : initialState.sprintLength,
     owners: typeof value?.owners === "string" ? value.owners : initialState.owners,
+  } satisfies BuildState;
+
+  if (!simpleMode) {
+    return normalized;
+  }
+
+  return {
+    ...normalized,
+    deliverables: normalized.deliverables || "Milestones, tasks, risks, and timeline",
   } satisfies BuildState;
 }
 

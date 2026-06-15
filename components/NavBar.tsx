@@ -3,7 +3,6 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import GlobalCommandBar from "@/components/GlobalCommandBar";
 
 const NavBarClerkControls = dynamic(() => import("@/components/NavBarClerkControls"), {
   ssr: false,
@@ -19,21 +18,28 @@ export default function NavBar() {
           Mate-E
         </Link>
 
-        <div className="flex items-center gap-3">
-          <Link href="/how-adaptive-guidance-works" className="text-sm px-3 py-1.5 rounded border border-teal-200 bg-white text-teal-900 hover:bg-teal-50">
-            Resources
+        <div className="hidden items-center gap-2 md:flex">
+          <Link href="/app/workspace/whiteboard" className="text-sm px-3 py-1.5 rounded border border-teal-200 bg-white text-teal-900 hover:bg-teal-50">
+            Capture
           </Link>
+          <Link href="/app/workspace/operations" className="text-sm px-3 py-1.5 rounded border border-teal-200 bg-white text-teal-900 hover:bg-teal-50">
+            Organize
+          </Link>
+          <Link href="/app/workspace" className="text-sm px-3 py-1.5 rounded border border-teal-200 bg-white text-teal-900 hover:bg-teal-50">
+            Execute
+          </Link>
+        </div>
 
+        <div className="flex items-center gap-3">
           {hasClerk ? (
             <NavBarClerkControls />
           ) : (
             <Link href="/app/workspace" className="text-sm px-3 py-1.5 rounded bg-teal-600 text-white hover:bg-teal-700">
-              Open productivity workspace
+              Open Mate-E
             </Link>
           )}
         </div>
       </nav>
-      <GlobalCommandBar />
     </header>
   );
 }

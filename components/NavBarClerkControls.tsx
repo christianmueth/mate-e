@@ -4,17 +4,13 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { SignedIn, SignedOut, SignInButton, SignUpButton, UserButton } from "@clerk/nextjs";
-import UserStatsPill from "@/components/UserStatsPill";
 
 export default function NavBarClerkControls() {
   return (
     <>
       <SignedIn>
-        <Link href="/app/workspace" className="text-sm px-3 py-1.5 rounded border border-teal-200 bg-white text-teal-900 hover:bg-teal-50">
-          Workspace
-        </Link>
-        <Link href="/app/progress" className="text-sm px-3 py-1.5 rounded border border-teal-200 bg-white text-teal-900 hover:bg-teal-50">
-          Insights
+        <Link href="/app/workspace" className="text-sm px-3 py-1.5 rounded border border-teal-200 bg-white text-teal-900 hover:bg-teal-50 md:hidden">
+          Execute
         </Link>
       </SignedIn>
 
@@ -23,7 +19,6 @@ export default function NavBarClerkControls() {
       </Suspense>
 
       <SignedIn>
-        <UserStatsPill />
         <UserButton afterSignOutUrl="/" />
       </SignedIn>
     </>

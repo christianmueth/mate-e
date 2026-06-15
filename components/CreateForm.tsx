@@ -4,6 +4,9 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { upload } from "@vercel/blob/client";
 
+type IntakeMode = "upload" | "paste" | "write";
+type UploadKind = "pdf" | "subtitle" | "video";
+
 export default function CreateForm({
   defaultGenerationMode = "flashcards",
   lockedGenerationMode,
@@ -13,23 +16,18 @@ export default function CreateForm({
 }) {
   const API_BODY_LIMIT = 4 * 1024 * 1024; // ~4MB body limit for serverless; larger videos will be uploaded to Blob
   const [pending, setPending] = useState(false);
-  const [contentType, setContentType] = useState<
-    "url" | "text" | "pdf" | "subtitle" | "video"
-  >("url");
-  const [url, setUrl] = useState("");
-  const [text, setText] = useState("");
-  const [pdfName, setPdfName] = useState("");
-  const [subtitleName, setSubtitleName] = useState("");
-  const [videoName, setVideoName] = useState("");
+  const [intakeMode, setIntakeMode] = useState<IntakeMode>("paste");
+  const [pasteContent, setPasteContent] = useState("");
+  const [writtenContent, setWrittenContent] = useState("");
+  const [uploadKind, setUploadKind] = useState<UploadKind>("pdf");
+  const [uploadName, setUploadName] = useState("");
   const [cardCount, setCardCount] = useState(20); // Default 20 cards
   const [generationMode, setGenerationMode] = useState<"flashcards" | "notes">(lockedGenerationMode || defaultGenerationMode);
 
   // Refs to clear file inputs programmatically
-  const urlRef = useRef<HTMLInputElement>(null);
-  const textRef = useRef<HTMLTextAreaElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null); // pdf/pptx
-  const subtitleRef = useRef<HTMLInputElement>(null);
-  const videoRef = useRef<HTMLInputElement>(null);
+  const pasteRef = useRef<HTMLTextAreaElement>(null);
+  const writeRef = useRef<HTMLTextAreaElement>(null);
+  const uploadRef = useRef<HTMLInputElement>(null);
 
   function removeHidden(form: HTMLFormElement, name: string) {
     form.querySelectorAll<HTMLInputElement>(`input[type="hidden"][name="${name}"]`).forEach((el) => el.remove());
@@ -63,33 +61,49 @@ export default function CreateForm({
     setPending(true);
 
     try {
-      // Check file sizes for PDF/PPTX only (videos can be any size via Blob upload)
-      const fileInput = form.querySelector<HTMLInputElement>('input[name="file"]');
-      const pdfOrPptx = fileInput?.files?.[0];
+      // Check file sizes for document uploads only (videos can be any size via Blob upload)
+      const uploadInput = form.querySelector<HTMLInputElement>('input[name="upload"]');
+      const uploadFile = uploadInput?.files?.[0];
+      const pdfOrPptx = uploadKind === "pdf" ? uploadFile : null;
       if (pdfOrPptx && pdfOrPptx.size > MAX_FILE_SIZE) {
         throw new Error(`That file is too large (${(pdfOrPptx.size / 1024 / 1024).toFixed(1)}MB). Keep it under 200MB so your workspace can be prepared reliably.`);
       }
 
       // Clear stale hidden fields from older attempts
-      ["videoUrl", "videoName", "videoSize", "docUrl", "docName"].forEach((n) => removeHidden(form, n));
+      ["videoUrl", "videoName", "videoSize", "docUrl", "docName", "audioUrl"].forEach((n) => removeHidden(form, n));
 
-      // Build FormData fresh with only the active content type's file input
+      // Build FormData fresh with only the normalized active input
       const original = new FormData(form);
       const fd = new FormData();
       for (const [k, v] of original.entries()) {
-        // Skip all file inputs - we'll add back only the active one
-        if (k === "video" || k === "file" || k === "subtitle") continue;
+        if (k === "upload" || k === "pasteContent" || k === "writeContent") continue;
         fd.append(k, v);
       }
-      
+
       // Add card count to form data
       fd.append("cardCount", String(cardCount));
-      
-      // Add back only the file input that matches current content type
-      if (contentType === "pdf") {
-        const f = original.get("file") as File | null;
+
+      if (intakeMode === "paste") {
+        const normalizedPaste = pasteContent.trim();
+        if (normalizedPaste) {
+          if (looksLikeUrlInput(normalizedPaste)) {
+            fd.append("url", normalizedPaste);
+          } else {
+            fd.append("source", normalizedPaste);
+          }
+        }
+      }
+
+      if (intakeMode === "write") {
+        const normalizedWriting = writtenContent.trim();
+        if (normalizedWriting) {
+          fd.append("source", normalizedWriting);
+        }
+      }
+
+      if (intakeMode === "upload" && uploadKind === "pdf") {
+        const f = original.get("upload") as File | null;
         if (f && f.size > 0) {
-          // Upload docs via direct Blob upload to avoid Vercel request body limits (413)
           const sizeMB = f.size / (1024 * 1024);
           const sizeDisplay = sizeMB >= 1 ? `${sizeMB.toFixed(1)}MB` : `${(f.size / 1024).toFixed(0)}KB`;
           toast.info(`Preparing your workspace material (${sizeDisplay})...`);
@@ -100,28 +114,26 @@ export default function CreateForm({
             toast.success("Source ready. Building your workspace...");
           } catch (err: any) {
             console.warn("[Client] Blob doc upload failed:", err?.message || err);
-            // If the doc is big, we cannot safely fall back to sending it through the API
-            // (it will likely hit Vercel request size limits and 413).
             if (f.size > API_BODY_LIMIT) {
               throw new Error("We couldn't prepare that document. Please retry; large files need the upload step to finish first.");
             }
-            fd.append("file", f);
+            fd.append("upload", f);
           }
         }
-      } else if (contentType === "subtitle") {
-        const s = original.get("subtitle");
+      } else if (intakeMode === "upload" && uploadKind === "subtitle") {
+        const s = original.get("upload");
         if (s) fd.append("subtitle", s);
       }
-      // Video is handled specially below
 
       // Video/audio handling: upload large files to Blob and send URL instead of raw file
-      const videoInput = form.querySelector<HTMLInputElement>('input[name="video"]');
-      const videoFile = videoInput?.files?.[0] || (original.get("video") as File | null);
+      const videoFile = intakeMode === "upload" && uploadKind === "video"
+        ? ((original.get("upload") as File | null) ?? null)
+        : null;
       if (videoFile) {
         const actualSize = videoFile.size;
         const sizeMB = actualSize / (1024 * 1024);
         const sizeKB = actualSize / 1024;
-        
+
         console.log("[Client] Video file detected:", {
           name: videoFile.name,
           type: videoFile.type,
@@ -134,8 +146,6 @@ export default function CreateForm({
         
         const isAudio = looksLikeAudioFile(videoFile);
 
-        // If the user uploads audio (mp3/m4a/etc), prefer the same reliable audioUrl path as the CLI.
-        // This avoids the slower video-processing route and avoids any YouTube server-side fetching.
         if (isAudio) {
           const sizeMB = videoFile.size / (1024 * 1024);
           const sizeKB = videoFile.size / 1024;
@@ -151,14 +161,14 @@ export default function CreateForm({
           const sizeDisplay = sizeMB >= 1 
             ? `${sizeMB.toFixed(1)}MB` 
             : `${sizeKB.toFixed(0)}KB`;
-          
+
           console.log("[Client] File size check:", {
             bytes: videoFile.size,
             KB: sizeKB.toFixed(2),
             MB: sizeMB.toFixed(2),
             display: sizeDisplay
           });
-          
+
           toast.info(`Preparing your video source (${sizeDisplay})...`);
 
           const blob = await uploadViaBlob(videoFile, "video");
@@ -167,17 +177,13 @@ export default function CreateForm({
           fd.append("videoName", videoFile.name || "video.mp4");
           toast.success("Video ready. Building workspace guidance may take a few minutes.");
         } else {
-          // Small enough to send directly
           console.log("[Client] Video small enough, sending directly in request");
           fd.append("video", videoFile);
           toast.info("Reviewing your video and building your workspace...");
         }
       }
 
-      // Show appropriate processing message based on content type
-      if (contentType === "video") {
-        // Already shown above for video
-      } else {
+      if (!(intakeMode === "upload" && uploadKind === "video")) {
         toast.info("Preparing your workspace material...");
       }
 
@@ -269,7 +275,6 @@ export default function CreateForm({
       {/* Generation mode selector */}
       {lockedGenerationMode ? null : (
         <div>
-          <label className="text-sm font-medium">What would you like this workspace to produce?</label>
           <div className="mt-2 flex gap-3">
             <button
               type="button"
@@ -280,8 +285,7 @@ export default function CreateForm({
                   : "bg-white text-gray-700 border-gray-300 hover:border-gray-400"
               }`}
             >
-              🧠 AI Checkpoints
-              <p className="text-xs mt-1 opacity-75">Generate adaptive checkpoints to validate alignment, readiness, and understanding</p>
+              AI Checkpoints
             </button>
             <button
               type="button"
@@ -292,18 +296,17 @@ export default function CreateForm({
                   : "bg-white text-gray-700 border-gray-300 hover:border-gray-400"
               }`}
             >
-              📝 Workspace Briefing
-              <p className="text-xs mt-1 opacity-75">Generate an executive summary, key decisions, risks, and next actions</p>
+              Workspace Briefing
             </button>
           </div>
         </div>
       )}
 
       <div>
-        <label className="text-sm font-medium">Workspace title <span className="text-red-500">*</span></label>
+        <label className="text-sm font-medium">Title <span className="text-red-500">*</span></label>
         <input 
           name="title" 
-          placeholder="Q3 planning hub" 
+          placeholder="Mate-E workspace redesign" 
           className="w-full border rounded p-2" 
           required 
           minLength={3}
@@ -314,7 +317,7 @@ export default function CreateForm({
       {/* AI checkpoint count selector */}
       {generationMode === "flashcards" && (
         <div>
-          <label className="text-sm font-medium">How many AI checkpoints do you want?</label>
+          <label className="text-sm font-medium">AI checkpoints</label>
           <select
             className="mt-1 w-full border rounded p-2 bg-white"
             value={cardCount}
@@ -328,93 +331,43 @@ export default function CreateForm({
             <option value={75}>75 checkpoints</option>
             <option value={100}>100 checkpoints (slower)</option>
           </select>
-          <p className="text-xs text-gray-500 mt-1">Larger checkpoint sets take more time to prepare.</p>
         </div>
       )}
 
-      {/* Content type selector */}
       <div>
-        <label className="text-sm font-medium">Source type</label>
-        <select
-          className="mt-1 w-full border rounded p-2 bg-white"
-          value={contentType}
-          onChange={(e) => {
-            const val = e.target.value as typeof contentType;
-            setContentType(val);
-            // Clear other fields when switching to reduce accidental multi-input
-            if (val !== "url") {
-              setUrl("");
-              if (urlRef.current) urlRef.current.value = "";
-            }
-            if (val !== "text") {
-              setText("");
-              if (textRef.current) textRef.current.value = "";
-            }
-            if (val !== "pdf") {
-              if (fileRef.current) fileRef.current.value = "";
-              setPdfName("");
-            }
-            if (val !== "subtitle") {
-              if (subtitleRef.current) subtitleRef.current.value = "";
-              setSubtitleName("");
-            }
-            if (val !== "video") {
-              if (videoRef.current) videoRef.current.value = "";
-              setVideoName("");
-            }
-          }}
-        >
-          <option value="url">Website URL</option>
-          <option value="text">Paste text</option>
-          <option value="pdf">Upload PPTX or PDF</option>
-          <option value="subtitle">Upload subtitles (SRT/VTT)</option>
-          <option value="video">Upload video file</option>
-        </select>
-      </div>
-
-      {/* URL input */}
-      <div className={contentType === "url" ? "" : "hidden"}>
-        <label className="text-sm font-medium">Website URL</label>
-        <div className="flex gap-2 items-stretch">
-          <input
-            ref={urlRef}
-            name="url"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://…"
-            className="w-full border rounded p-2"
-          />
-          <button
-            type="button"
-            className="px-3 whitespace-nowrap border rounded"
-            onClick={async () => {
-              try {
-                const clip = await navigator.clipboard.readText();
-                if (clip) setUrl(clip.trim());
-                else toast.message("Clipboard is empty");
-              } catch {
-                toast.error("Couldn't read clipboard");
-              }
-            }}
-            title="Paste from clipboard"
-          >
-            Paste
-          </button>
+        <div className="mt-2 grid gap-2 sm:grid-cols-3">
+          {([
+            ["upload", "Upload"],
+            ["paste", "Paste"],
+            ["write", "Write"],
+          ] as const).map(([value, label]) => {
+            const active = intakeMode === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setIntakeMode(value)}
+                className={active
+                  ? "rounded-2xl border border-slate-950 bg-slate-950 px-4 py-3 text-left text-white"
+                  : "rounded-2xl border border-slate-300 bg-white px-4 py-3 text-left text-slate-900 hover:bg-slate-50"
+                }
+              >
+                <div className="text-sm font-medium">{label}</div>
+              </button>
+            );
+          })}
         </div>
-        <p className="text-xs text-gray-500 mt-1">Paste a website URL. For videos, upload audio or video files, or add captions.</p>
       </div>
 
-      {/* Text input */}
-      <div className={contentType === "text" ? "" : "hidden"}>
-        <label className="text-sm font-medium">Paste text</label>
+      <div className={intakeMode === "paste" ? "" : "hidden"}>
         <div className="space-y-2">
           <textarea
-            ref={textRef}
-            name="source"
+            ref={pasteRef}
+            name="pasteContent"
             rows={6}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Paste notes, docs, transcripts, or reference text here..."
+            value={pasteContent}
+            onChange={(e) => setPasteContent(e.target.value)}
+            placeholder="Paste"
             className="w-full border rounded p-2"
           />
           <div className="flex gap-2">
@@ -424,7 +377,7 @@ export default function CreateForm({
               onClick={async () => {
                 try {
                   const clip = await navigator.clipboard.readText();
-                  if (clip) setText(clip);
+                  if (clip) setPasteContent(clip);
                   else toast.message("Clipboard is empty");
                 } catch {
                   toast.error("Couldn't read clipboard");
@@ -436,7 +389,7 @@ export default function CreateForm({
             <button
               type="button"
               className="px-3 border rounded"
-              onClick={() => setText("")}
+              onClick={() => setPasteContent("")}
             >
               Clear
             </button>
@@ -444,138 +397,71 @@ export default function CreateForm({
         </div>
       </div>
 
-      {/* PDF/PPTX */}
-      <div className={contentType === "pdf" ? "" : "hidden"}>
-        <label className="text-sm font-medium">Upload PPTX or PDF</label>
+      <div className={intakeMode === "write" ? "" : "hidden"}>
+        <div className="space-y-2">
+          <textarea
+            ref={writeRef}
+            name="writeContent"
+            rows={8}
+            value={writtenContent}
+            onChange={(e) => setWrittenContent(e.target.value)}
+            placeholder="Write"
+            className="w-full border rounded p-2"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="px-3 border rounded"
+              onClick={() => setWrittenContent("")}
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className={intakeMode === "upload" ? "" : "hidden"}>
         <div className="flex items-center gap-2">
           <input
-            ref={fileRef}
-            id="pdf-input"
+            ref={uploadRef}
+            id="upload-input"
             type="file"
-            name="file"
-            accept=".pptx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            name="upload"
+            accept=".pptx,.pdf,.srt,.vtt,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/vtt,video/*,audio/*"
             className="hidden"
             onChange={(e) => {
               const f = e.currentTarget.files?.[0];
-              setPdfName(f ? f.name : "");
+              setUploadName(f ? f.name : "");
+              setUploadKind(classifyUploadKind(f));
             }}
           />
           <button
             type="button"
             className="px-3 py-2 border rounded bg-white"
-            onClick={() => fileRef.current?.click()}
+            onClick={() => uploadRef.current?.click()}
           >
             Choose file
           </button>
           <span
             className="max-w-[50%] inline-flex items-center px-3 py-1 rounded-full border bg-gray-50 text-gray-700 text-xs truncate"
-            title={pdfName || "No file chosen"}
+            title={uploadName || "No file chosen"}
             aria-live="polite"
           >
-            {pdfName || "No file chosen"}
+            {uploadName || "No file chosen"}
           </span>
           <button
             type="button"
             className="px-3 py-2 border rounded"
             onClick={() => {
-              if (fileRef.current) fileRef.current.value = "";
-              setPdfName("");
+              if (uploadRef.current) uploadRef.current.value = "";
+              setUploadName("");
+              setUploadKind("pdf");
             }}
           >
             Clear
           </button>
         </div>
-        <p className="text-xs text-gray-500">Maximum file size: 200MB. For larger files, paste the most important sections as text.</p>
-      </div>
-
-      {/* Subtitles */}
-      <div className={contentType === "subtitle" ? "" : "hidden"}>
-        <label className="text-sm font-medium">Upload subtitle file (SRT/VTT)</label>
-        <div className="flex items-center gap-2">
-          <input
-            ref={subtitleRef}
-            id="subtitle-input"
-            type="file"
-            name="subtitle"
-            accept=".srt,.vtt,text/vtt"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.currentTarget.files?.[0];
-              setSubtitleName(f ? f.name : "");
-            }}
-          />
-          <button
-            type="button"
-            className="px-3 py-2 border rounded bg-white"
-            onClick={() => subtitleRef.current?.click()}
-          >
-            Choose file
-          </button>
-          <span
-            className="max-w-[50%] inline-flex items-center px-3 py-1 rounded-full border bg-gray-50 text-gray-700 text-xs truncate"
-            title={subtitleName || "No file chosen"}
-            aria-live="polite"
-          >
-            {subtitleName || "No file chosen"}
-          </span>
-          <button
-            type="button"
-            className="px-3 py-2 border rounded"
-            onClick={() => { if (subtitleRef.current) subtitleRef.current.value = ""; setSubtitleName(""); }}
-          >
-            Clear
-          </button>
-        </div>
-        <p className="text-xs text-gray-500">Upload a subtitle file (.srt or .vtt) from your source.</p>
-      </div>
-
-      {/* Video upload (server may disable) */}
-      <div className={contentType === "video" ? "" : "hidden"}>
-        <label className="text-sm font-medium">Upload video or audio file</label>
-        
-        {/* Warning banner */}
-        <div className="mb-2 border-l-4 border-orange-500 bg-orange-50 p-3 rounded">
-          <p className="text-sm font-semibold text-orange-800">⚠️ Uploads are slower and cost the website API credits</p>
-          <p className="text-xs text-orange-700 mt-1">
-            Processing can take a few minutes. Uploading audio (mp3/m4a) is usually faster than video.
-          </p>
-        </div>
-        
-        <div className="flex items-center gap-2">
-          <input
-            ref={videoRef}
-            id="video-input"
-            type="file"
-            name="video"
-            accept="video/*,audio/*"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.currentTarget.files?.[0];
-              setVideoName(f ? f.name : "");
-            }}
-          />
-          <button
-            type="button"
-            className="px-3 py-2 border rounded bg-white"
-            onClick={() => videoRef.current?.click()}
-          >
-            Choose file
-          </button>
-          <span
-            className="max-w-[50%] inline-flex items-center px-3 py-1 rounded-full border bg-gray-50 text-gray-700 text-xs truncate"
-            title={videoName || "No file chosen"}
-            aria-live="polite"
-          >
-            {videoName || "No file chosen"}
-          </span>
-          <button
-            type="button"
-            className="px-3 py-2 border rounded"
-            onClick={() => { if (videoRef.current) videoRef.current.value = ""; setVideoName(""); }}
-          >
-            Clear
-          </button>
-        </div>
+        <div className="mt-2 text-xs text-slate-500">{describeUploadKind(uploadKind)}</div>
       </div>
 
       <button className="px-4 py-2 rounded bg-black text-white disabled:opacity-60" type="submit" disabled={pending}>
@@ -587,4 +473,31 @@ export default function CreateForm({
       </button>
     </form>
   );
+}
+
+function looksLikeUrlInput(value: string) {
+  const trimmed = value.trim();
+  return /^https?:\/\//i.test(trimmed) || /^www\./i.test(trimmed);
+}
+
+function classifyUploadKind(file: File | undefined) {
+  if (!file) return "pdf" as const;
+  const type = (file.type || "").toLowerCase();
+  const name = (file.name || "").toLowerCase();
+
+  if (type.startsWith("video/") || type.startsWith("audio/") || /\.(mp4|mov|m4v|webm|mp3|m4a|wav|ogg)$/i.test(name)) {
+    return "video" as const;
+  }
+
+  if (/\.(srt|vtt)$/i.test(name) || type.includes("vtt")) {
+    return "subtitle" as const;
+  }
+
+  return "pdf" as const;
+}
+
+function describeUploadKind(kind: UploadKind) {
+  if (kind === "subtitle") return "subtitle file";
+  if (kind === "video") return "audio or video";
+  return "document or slides";
 }

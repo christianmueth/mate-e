@@ -46,7 +46,7 @@ export default function TutorChatPanel() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [enabled, setEnabled] = useState(true);
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [bootstrapping, setBootstrapping] = useState(true);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
@@ -76,6 +76,12 @@ export default function TutorChatPanel() {
     if (stored === "0") setOpen(false);
     if (stored === "1") setOpen(true);
   }, []);
+
+  useEffect(() => {
+    if (workspaceMode === "instructional-chat" || starterPrompt) {
+      setOpen(true);
+    }
+  }, [starterPrompt, workspaceMode]);
 
   useEffect(() => {
     setEnabled(readTutorChatEnabled());
@@ -208,7 +214,6 @@ export default function TutorChatPanel() {
 
   if (!isWorkspaceRoute || !enabled || isWhiteboardRoute) return null;
 
-  const promptSuggestions = buildPromptSuggestions(context, pathname);
   const summaryLabel = buildSummaryLabel({ pathname, deckId, deckTitle: context?.deckTitle ?? null });
 
   async function submitMessage(prefill?: string) {
@@ -255,131 +260,60 @@ export default function TutorChatPanel() {
     }
   }
 
+  const visibleMessages = messages.slice(-4);
+  const latestAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant") ?? null;
+
   return (
-    <div className="pointer-events-none fixed inset-x-4 bottom-4 z-40 sm:left-auto sm:right-5 sm:w-[24rem]">
-      <div className="pointer-events-auto overflow-hidden rounded-3xl border border-sky-200 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.18)] backdrop-blur">
-        <div className="flex items-center justify-between gap-3 border-b border-sky-100 bg-gradient-to-r from-sky-50 via-white to-cyan-50 px-4 py-3">
+    <div className="pointer-events-none fixed inset-x-4 bottom-4 z-40 flex justify-end sm:left-auto sm:right-5 sm:w-[20rem]">
+      <div className={open
+        ? "pointer-events-auto overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white/95 shadow-[0_16px_40px_rgba(15,23,42,0.14)] backdrop-blur"
+        : "pointer-events-auto"
+      }>
+        <div className="flex items-center justify-between gap-3 px-4 py-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-700">Persistent workspace guide</p>
-            <p className="truncate text-sm text-slate-700">Context-aware guidance for {summaryLabel}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Chat</p>
+            <p className="truncate text-sm text-slate-700">{summaryLabel}</p>
           </div>
           <button
             type="button"
             className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
             onClick={() => setOpen((current) => !current)}
           >
-            {open ? "Minimize" : "Open"}
+            {open ? "Close" : "Open"}
           </button>
         </div>
 
         {open ? (
-          <div className="space-y-4 p-4">
-            <div className="flex flex-wrap gap-2 text-[11px] text-slate-600">
-              {workspaceMode === "instructional-chat" ? (
-                <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-amber-800">
-                  instructional chat
-                </span>
-              ) : null}
-              {context?.weakConcepts?.slice(0, 2).map((concept) => (
-                <span key={concept} className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1">
-                  weak area: {concept}
-                </span>
-              ))}
-              {context?.explanationStyle ? (
-                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1">
-                  style: {context.explanationStyle}
-                </span>
-              ) : null}
-              {deckId && typeof context?.cardCount === "number" ? (
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1">
-                  {context.cardCount} cards in view
-                </span>
-              ) : null}
-              {activeSessionContext?.queuePosition ? (
-                <span className="rounded-full border border-violet-200 bg-violet-50 px-2.5 py-1 text-violet-800">
-                  prompt {activeSessionContext.queuePosition.current} of {activeSessionContext.queuePosition.total}
-                </span>
-              ) : null}
-            </div>
-
-            {activeSessionContext?.currentCard ? (
-              <div className="rounded-2xl border border-violet-200 bg-violet-50/80 px-4 py-3 text-sm leading-6 text-slate-700">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-800">Live workspace context</p>
-                <p className="mt-1 font-medium text-slate-900">{activeSessionContext.currentCard.question}</p>
-                {activeSessionContext.latestCoaching?.hint ? (
-                  <p className="mt-2 text-slate-700">Latest workspace hint: {activeSessionContext.latestCoaching.hint}</p>
-                ) : activeSessionContext.answerDraft ? (
-                  <p className="mt-2 text-slate-700">Your current draft is loaded, so Mate-E can respond to what you have already tried.</p>
-                ) : null}
-                {activeSessionContext.latestCoaching?.worldModelExplanation ? (
-                  <div className="mt-3 rounded-2xl border border-fuchsia-200 bg-white/70 px-3 py-3 text-[13px] leading-5 text-slate-700">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-fuchsia-800">Learner world model</p>
-                    <p className="mt-1 text-slate-800">{activeSessionContext.latestCoaching.worldModelExplanation}</p>
-                    <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-600">
-                      {typeof activeSessionContext.latestCoaching.projectedConfidenceDelta === "number" ? (
-                        <span className="rounded-full border border-fuchsia-200 bg-fuchsia-50 px-2.5 py-1 text-fuchsia-800">
-                          confidence {formatSignedPercent(activeSessionContext.latestCoaching.projectedConfidenceDelta)}
-                        </span>
-                      ) : null}
-                      {typeof activeSessionContext.latestCoaching.projectedRecoveryProbability === "number" ? (
-                        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-800">
-                          recovery {formatPercent(activeSessionContext.latestCoaching.projectedRecoveryProbability)}
-                        </span>
-                      ) : null}
-                      {typeof activeSessionContext.latestCoaching.projectedStabilityGain === "number" ? (
-                        <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-sky-800">
-                          stability {formatPercent(activeSessionContext.latestCoaching.projectedStabilityGain)}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : null}
+          <div className="space-y-3 border-t border-slate-100 p-4">
+            {latestAssistantMessage && !visibleMessages.length ? (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-700">
+                <p className="mt-1">{latestAssistantMessage.content}</p>
               </div>
             ) : null}
 
-            <div ref={messageViewportRef} className="max-h-[22rem] space-y-3 overflow-y-auto pr-1">
+            <div ref={messageViewportRef} className="max-h-[14rem] space-y-2 overflow-y-auto pr-1">
               {bootstrapping || loading ? (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                  Restoring workspace continuity...
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
+                  Loading...
                 </div>
-              ) : messages.length ? (
-                messages.map((message) => (
+              ) : visibleMessages.length ? (
+                visibleMessages.map((message) => (
                   <div
                     key={message.id}
                     className={message.role === "assistant"
-                      ? "mr-6 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-3 text-sm leading-6 text-slate-700"
-                      : "ml-8 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900"
+                      ? "mr-4 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-700"
+                      : "ml-6 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-900"
                     }
                   >
-                    <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                      {message.role === "assistant" ? "Mate-E" : "You"}
-                    </p>
                     <p className="whitespace-pre-wrap">{message.content}</p>
                   </div>
                 ))
               ) : (
-                <div className="space-y-3 rounded-2xl border border-sky-100 bg-sky-50 px-4 py-4 text-sm leading-6 text-slate-700">
-                  <p className="font-medium text-slate-900">Ask for a quick explanation, a next-step recommendation, or help unpacking what feels shaky.</p>
-                  <p>Mate-E can use your current workspace, recent history, and saved weak concepts to keep guidance continuous.</p>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-700">
+                  No messages yet.
                 </div>
               )}
             </div>
-
-            {!messages.length && !loading ? (
-              <div className="flex flex-wrap gap-2">
-                {promptSuggestions.map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    type="button"
-                    className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-700 hover:bg-white"
-                    onClick={() => submitMessage(suggestion)}
-                    disabled={sending}
-                  >
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
-            ) : null}
 
             <form
               className="space-y-3"
@@ -391,37 +325,34 @@ export default function TutorChatPanel() {
               <textarea
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
-                placeholder="Ask Mate-E what to review, what changed, or why this concept still matters."
-                className="min-h-[88px] w-full rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
+                placeholder="Message"
+                className="min-h-[76px] w-full rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
               />
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs leading-5 text-slate-500">Mate-E can explain and recommend, but it will not take actions for you.</p>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                    onClick={() => setOpen(false)}
-                  >
-                    Minimize chat
-                  </button>
-                  <button
-                    type="submit"
-                    className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-                    disabled={sending || !draft.trim()}
-                  >
-                    {sending ? "Thinking..." : "Ask Mate-E"}
-                  </button>
-                </div>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  onClick={() => setOpen(false)}
+                >
+                  Close
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                  disabled={sending || !draft.trim()}
+                >
+                  {sending ? "Thinking..." : "Send"}
+                </button>
               </div>
             </form>
           </div>
         ) : (
           <button
             type="button"
-            className="w-full bg-white px-4 py-3 text-left text-sm text-slate-700 hover:bg-slate-50"
+            className="h-11 w-11 rounded-full border border-slate-200 bg-white/92 text-xs font-medium text-slate-600 shadow-[0_10px_24px_rgba(15,23,42,0.12)] hover:bg-white"
             onClick={() => setOpen(true)}
           >
-            Reopen workspace chat
+            Chat
           </button>
         )}
       </div>
@@ -441,20 +372,6 @@ async function safeJson(res: Response) {
 function extractDeckId(pathname: string | null) {
   const match = String(pathname || "").match(/^\/app\/deck\/([^/]+)/);
   return match?.[1] ? decodeURIComponent(match[1]) : null;
-}
-
-function buildPromptSuggestions(context: TutorChatContext | null, pathname: string | null) {
-  const suggestions = [
-    "What should I review next?",
-    context?.weakConcepts?.[0]
-      ? `Give me a quick refresh on ${context.weakConcepts[0]}.`
-      : "What concept looks the shakiest right now?",
-    pathname === "/app/progress"
-      ? "What does my recent progress suggest?"
-      : "How should I use this workspace set right now?",
-  ];
-
-  return Array.from(new Set(suggestions));
 }
 
 function buildSummaryLabel({
