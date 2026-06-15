@@ -2460,11 +2460,6 @@ export default function WorkspaceWhiteboard() {
                   </div>
 
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <button type="button" onClick={() => window.location.assign(workspaceChatHref)} className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
-                        Open chat
-                      </button>
-                    </div>
                     <div className="mt-3 space-y-2">
                       {workspaceMemory.length ? workspaceMemory.map((item) => (
                         <div key={item} className="rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm leading-6 text-slate-700">

@@ -79,6 +79,7 @@ export default function TutorChatPanel() {
 
   const isWorkspaceRoute = pathname?.startsWith("/app") ?? false;
   const isExecuteRoute = pathname === "/app/workspace";
+  const isCaptureRoute = pathname?.startsWith("/app/workspace/whiteboard") ?? false;
   const deckId = useMemo(() => extractDeckId(pathname), [pathname]);
   const isDeckStudyRoute = Boolean(deckId);
   const focusConcept = searchParams.get("concept");
@@ -239,7 +240,7 @@ export default function TutorChatPanel() {
     lastStarterPromptRef.current = routeKey;
   }, [isWorkspaceRoute, routeKey, starterPrompt]);
 
-  if (!isWorkspaceRoute || !enabled || isExecuteRoute) return null;
+  if (!isWorkspaceRoute || !enabled || isExecuteRoute || isCaptureRoute) return null;
 
   const summaryLabel = buildSummaryLabel({ pathname, deckId, deckTitle: context?.deckTitle ?? null });
   const latestAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant") ?? null;
