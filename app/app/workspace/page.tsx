@@ -378,19 +378,25 @@ function buildFocusQueue(context: WorkspaceContext | null, lowConfidenceRuns: nu
 
   if (context?.weakConcepts?.[0]) {
     items.push({
-      title: `Resolve weak thread: ${truncateText(context.weakConcepts[0], 40)}`,
-      detail: "A persistent weak concept is a good proxy for ambiguity that will keep resurfacing until it is turned into a concrete plan or explanation.",
+      title: `Clarify ${truncateText(context.weakConcepts[0], 40)}`,
+      detail: "Turn the unclear part into a concrete plan or explanation before it keeps resurfacing.",
       href: buildWorkspaceChatHref(`Help me resolve the weak thread around ${context.weakConcepts[0]} and turn it into an execution-ready plan.`, "Weak threads should become actionable, not just remembered."),
-      cta: "Ask Mate-E",
+      cta: "Clarify now",
     });
   }
 
   if (lowConfidenceRuns > 0) {
     items.push({
-      title: "Stabilize the recent analysis loop",
-      detail: `There ${lowConfidenceRuns === 1 ? "was" : "were"} ${lowConfidenceRuns} low-confidence run${lowConfidenceRuns === 1 ? "" : "s"} recently. Review why confidence dipped and lock in the next bounded action.`,
-      href: buildWorkspaceChatHref("Help me stabilize the recent low-confidence work and choose the next bounded action.", "Use the execute read to keep the current thread stable."),
-      cta: "Stabilize thread",
+      title: context?.presentationReference?.title
+        ? `Clarify ${truncateText(context.presentationReference.title, 40)}`
+        : "Review the unclear step",
+      detail: context?.presentationReference?.title
+        ? "The active presentation still needs a clearer objective before the next section is worth refining."
+        : "The last pass ended without a clear next move, so define the next bounded step before doing anything broader.",
+      href: context?.presentationReference?.title
+        ? "/app/workspace/presentations"
+        : buildWorkspaceChatHref("Help me review the unclear part of the current work and turn it into one concrete next step.", "The next move should be explicit and bounded."),
+      cta: context?.presentationReference?.title ? "Review now" : "Define next step",
     });
   }
 

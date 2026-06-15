@@ -530,7 +530,7 @@ function buildRecommendationCard({
     const nextAction = workspaceState.uploadedAssets[0]
       ? `Extract action items from ${workspaceState.uploadedAssets[0].name}`
       : board?.workspaceGoal
-        ? `Summarize and structure ${board.workspaceGoal}`
+        ? `Turn ${board.workspaceGoal} into action items`
         : "Turn the latest capture into tasks";
     const risk = board?.noteCount
       ? "Captured material is still loose until it becomes tasks or themes."
@@ -557,7 +557,9 @@ function buildRecommendationCard({
 
   if (isOrganize) {
     const nextAction = presentation?.title
-      ? `Build the plan for ${presentation.title}`
+      ? presentation.outlineCount < 4
+        ? `Clarify the learning objectives for ${presentation.title}`
+        : `Plan the next section of ${presentation.title}`
       : `Turn ${currentGoal} into a working plan`;
     const risk = presentation && presentation.outlineCount < 4
       ? "The plan still looks thin and may be missing sequence or dependencies."
@@ -583,16 +585,20 @@ function buildRecommendationCard({
   }
 
   const nextAction = weakConcept
-    ? `Resolve ${truncateText(weakConcept, 64)}`
+    ? `Clarify ${truncateText(weakConcept, 64)}`
     : latestGuidance
       ? truncateText(latestGuidance, 72)
-      : `Do the next bounded step for ${currentGoal}`;
+      : presentation?.title
+        ? presentation.outlineCount < 4
+          ? `Clarify the learning objectives for ${presentation.title}`
+          : `Review the next section of ${presentation.title}`
+        : `Define the next bounded step for ${currentGoal}`;
   const risk = recentFailure
     ? truncateText(recentFailure, 96)
     : context?.lowConfidenceStreak
-      ? `${context.lowConfidenceStreak} recent low-confidence pass${context.lowConfidenceStreak === 1 ? "" : "es"}.`
+      ? `The last ${context.lowConfidenceStreak} pass${context.lowConfidenceStreak === 1 ? "" : "es"} did not end with a clear next move.`
       : weakConcept
-        ? `Weak thread: ${truncateText(weakConcept, 88)}`
+        ? `${truncateText(weakConcept, 88)} is still unresolved.`
         : "No dominant blocker is recorded, so the risk is drift through indecision.";
 
   return {
@@ -607,10 +613,10 @@ function buildRecommendationCard({
     lastUpdated,
     confidence,
     actions: [
-      { label: "Do This", prompt: `Give me the single highest-leverage next step for ${currentGoal}. Keep it concrete.`, tone: "primary" },
+      { label: "Start", prompt: `Turn ${nextAction} into the single highest-leverage next step for ${currentGoal}. Keep it concrete and immediately actionable.`, tone: "primary" },
       { label: "Why?", prompt: `Why is ${nextAction} the right next step for ${currentGoal}? Include blockers and rationale.`, tone: "secondary" },
       { label: "Alternative", prompt: `If I do not do ${nextAction}, what is the best alternative next step for ${currentGoal}?`, tone: "secondary" },
-      { label: "Unblock", prompt: `What blocker is most likely to stall ${currentGoal}, and how should I resolve it first?`, tone: "secondary" },
+      { label: "Unblock", prompt: `What blocker is most likely to stall ${nextAction}, and how should I resolve it first?`, tone: "secondary" },
     ],
   };
 }
