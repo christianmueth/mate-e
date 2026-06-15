@@ -60,7 +60,6 @@ type FocusQueueItem = {
 type WorkspaceMemoryCard = {
   workspaceName: string;
   lastActive: string;
-  summary: string;
   nextSuggestedStep: string;
 };
 
@@ -205,14 +204,14 @@ export default async function WorkspacePage() {
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Current workspace</p>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{memoryCard.workspaceName}</h2>
           <div className="mt-5 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Last session</p>
-            <p className="mt-2 text-sm leading-6 text-slate-700">{memoryCard.summary}</p>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Why this next</p>
-            <p className="mt-2 text-sm leading-6 text-slate-700">{buildPriorityReason(workspaceContext, recentRuns, analytics.lowConfidenceRuns, primaryAction.title)}</p>
-            <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Last active</p>
-            <p className="mt-2 text-sm leading-6 text-slate-700">{memoryCard.lastActive}</p>
+            <p className="text-sm leading-6 text-slate-700">Last active: {memoryCard.lastActive}</p>
             <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Next action</p>
-            <p className="mt-2 text-sm leading-6 text-slate-700">{memoryCard.nextSuggestedStep}</p>
+            <p className="mt-2 text-lg font-semibold text-slate-950">{memoryCard.nextSuggestedStep}</p>
+            <div className="mt-5">
+              <Link href={primaryAction.href} className="inline-flex rounded-full bg-slate-950 px-5 py-3 text-sm font-medium text-white hover:bg-slate-800">
+                Continue working
+              </Link>
+            </div>
           </div>
         </article>
       </section>
@@ -236,21 +235,11 @@ function buildWorkspaceMemoryCard(
   continuityLabel: string,
   nextSuggestedStep: string
 ): WorkspaceMemoryCard {
-  const workspaceName = context?.presentationReference?.title
-    || context?.whiteboardReference?.workspaceGoal
-    || context?.presentationReference?.title
-    || context?.weakConcepts?.[0]
-    || "Untitled workspace";
-
-  const summary = context?.presentationReference?.objective
-    || context?.whiteboardReference?.workspaceGoal
-    || context?.recentTutorInteractions?.[context.recentTutorInteractions.length - 1]?.content
-    || "No clear workspace summary yet.";
+  const workspaceName = deriveWorkspaceName(context);
 
   return {
     workspaceName,
-    lastActive: continuityLabel,
-    summary: truncateText(summary, 160),
+    lastActive: trimUpdatedLabel(continuityLabel),
     nextSuggestedStep,
   };
 }
@@ -318,7 +307,7 @@ function buildOperationsFeed(
         ? `Review ${truncateText(context.presentationReference.title, 36)}`
         : context?.weakConcepts?.[0]
           ? `Clarify ${truncateText(context.weakConcepts[0], 36)}`
-          : "Review this workspace",
+          : `Continue ${truncateText(deriveWorkspaceName(context), 36)}`,
       body: context?.presentationReference?.title
         ? "Confidence dropped around the active presentation, so the fastest win is to clarify what the deck is trying to accomplish."
         : "The last session ended without a clear next move, so resolve the unclear part before you widen scope again.",
@@ -335,7 +324,7 @@ function buildOperationsFeed(
     items.push({
       title: context?.presentationReference?.title
         ? `Continue ${truncateText(context.presentationReference.title, 36)}`
-        : `Continue ${truncateText(context?.whiteboardReference?.workspaceGoal || context?.weakConcepts?.[0] || "this workspace", 36)}`,
+        : `Continue ${truncateText(deriveWorkspaceName(context), 36)}`,
       body: latest.role === "assistant"
         ? truncateText(latest.content, 140)
         : `Last session ended with ${truncateText(latest.content, 120)}`,
@@ -451,6 +440,28 @@ function buildPriorityReason(
     return `${runs[0].title} was the latest active work. The next step should stay close to that project instead of starting something new.`;
   }
   return `${nextStepLabel} is the clearest move because the workspace still needs one active project before Mate-E can prioritize more aggressively.`;
+}
+
+function deriveWorkspaceName(context: WorkspaceContext | null) {
+  const preferred = context?.presentationReference?.title
+    || context?.whiteboardReference?.workspaceGoal
+    || context?.whiteboardReference?.boardName
+    || context?.weakConcepts?.[0]
+    || null;
+
+  if (!preferred) return "Current workspace";
+
+  const trimmed = preferred.trim();
+  if (!trimmed) return "Current workspace";
+  if (/^untitled$/i.test(trimmed) || /^untitled workspace$/i.test(trimmed) || /^board$/i.test(trimmed)) {
+    return "Current workspace";
+  }
+
+  return trimmed;
+}
+
+function trimUpdatedLabel(value: string) {
+  return value.replace(/^Updated\s+/i, "");
 }
 
 function isOlderThanDays(value: string, days: number) {
