@@ -58,8 +58,9 @@ type FocusQueueItem = {
 };
 
 type WorkspaceMemoryCard = {
+  workspaceName: string;
   lastActive: string;
-  youWere: string;
+  summary: string;
   nextSuggestedStep: string;
 };
 
@@ -154,10 +155,10 @@ export default async function WorkspacePage() {
   const memoryCard = buildWorkspaceMemoryCard(workspaceContext, continuityLabel, nextActions[0]?.title ?? "Choose the highest-leverage next action");
   const secondaryActions = nextActions.slice(1, 3);
   const primaryAction = nextActions[0] ?? {
-    title: "Create the first active thread",
-    detail: "Seed the workspace with one concrete task, source, or plan so tomorrow's next step is obvious.",
+    title: `Continue ${memoryCard.workspaceName}`,
+    detail: "Start with one concrete task, source, or plan so Mate-E can keep this workspace moving.",
     href: "/app/workspace/whiteboard",
-    cta: "Start working",
+    cta: "Continue working",
   };
 
   return (
@@ -169,14 +170,9 @@ export default async function WorkspacePage() {
         <h1 className="mt-3 max-w-3xl text-3xl font-semibold tracking-tight sm:text-4xl">What should happen next?</h1>
         <div className="mt-6 rounded-[1.75rem] border border-white/12 bg-white/8 p-5 backdrop-blur-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div className="flex gap-4">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-base font-semibold text-slate-950">
-                1
-              </span>
-              <div>
-                <h2 className="text-2xl font-semibold text-white">{primaryAction.title}</h2>
-                <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-200">{"detail" in primaryAction ? primaryAction.detail : primaryAction.body}</p>
-              </div>
+            <div>
+              <h2 className="text-2xl font-semibold text-white">{primaryAction.title}</h2>
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-200">{"detail" in primaryAction ? primaryAction.detail : primaryAction.body}</p>
             </div>
             <Link href={primaryAction.href} className="inline-flex rounded-full bg-white px-5 py-3 text-sm font-medium text-slate-950 hover:bg-slate-100">
               {primaryAction.cta}
@@ -186,7 +182,7 @@ export default async function WorkspacePage() {
 
         {secondaryActions.length ? (
           <div className="mt-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">Other options</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-200">Need something else?</p>
             <ol className="mt-3 grid gap-3 md:grid-cols-2">
             {secondaryActions.map((item, index) => (
               <li key={item.title} className="rounded-[1.5rem] border border-white/10 bg-black/10 p-4">
@@ -206,13 +202,17 @@ export default async function WorkspacePage() {
 
       <section>
         <article className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Current focus</p>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{memoryCard.youWere}</h2>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Current workspace</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{memoryCard.workspaceName}</h2>
           <div className="mt-5 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Last session</p>
+            <p className="mt-2 text-sm leading-6 text-slate-700">{memoryCard.summary}</p>
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Why this next</p>
             <p className="mt-2 text-sm leading-6 text-slate-700">{buildPriorityReason(workspaceContext, recentRuns, analytics.lowConfidenceRuns, primaryAction.title)}</p>
             <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Last active</p>
             <p className="mt-2 text-sm leading-6 text-slate-700">{memoryCard.lastActive}</p>
+            <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Next action</p>
+            <p className="mt-2 text-sm leading-6 text-slate-700">{memoryCard.nextSuggestedStep}</p>
           </div>
         </article>
       </section>
@@ -236,14 +236,21 @@ function buildWorkspaceMemoryCard(
   continuityLabel: string,
   nextSuggestedStep: string
 ): WorkspaceMemoryCard {
-  const activeThread = context?.whiteboardReference?.workspaceGoal
+  const workspaceName = context?.presentationReference?.title
+    || context?.whiteboardReference?.workspaceGoal
     || context?.presentationReference?.title
     || context?.weakConcepts?.[0]
-    || "Building the current workspace thread";
+    || "Untitled workspace";
+
+  const summary = context?.presentationReference?.objective
+    || context?.whiteboardReference?.workspaceGoal
+    || context?.recentTutorInteractions?.[context.recentTutorInteractions.length - 1]?.content
+    || "No clear workspace summary yet.";
 
   return {
+    workspaceName,
     lastActive: continuityLabel,
-    youWere: activeThread,
+    summary: truncateText(summary, 160),
     nextSuggestedStep,
   };
 }
@@ -258,8 +265,8 @@ function buildOperationsFeed(
 
   if (!savedAt) {
     items.push({
-      title: "Create the first active thread",
-      body: "Capture one concrete task, source, or plan so Mate-E can start carrying your work forward.",
+      title: "Start this workspace",
+      body: "Capture one concrete task, source, or plan so Mate-E can start carrying this workspace forward.",
       tone: "amber",
       href: "/app/workspace/whiteboard",
       cta: "Open Capture",
@@ -274,13 +281,13 @@ function buildOperationsFeed(
     const boardScore = Math.min(96, 28 + Math.round(boardAgeDays * 8) + Math.min(18, boardComplexity));
     items.push({
       title: context.whiteboardReference.noteCount > 0
-        ? `Review workspace structure`
+        ? `Continue ${truncateText(context.whiteboardReference.workspaceGoal || context.whiteboardReference.boardName || "workspace", 36)}`
         : `Capture new ideas`,
       body: staleBoard
-        ? `Your workspace thread has been idle since ${formatRelativeTime(context.whiteboardReference.updatedAt)}. Reopen it and decide what should move first.`
+        ? `This workspace has been idle since ${formatRelativeTime(context.whiteboardReference.updatedAt)}. Reopen it and decide what should move first.`
         : context.whiteboardReference.noteCount > 0
           ? `The current workspace still needs a clearer structure so the next move is obvious.`
-          : `No notes have been captured yet for the current workspace thread.`,
+          : `No notes have been captured yet for this workspace.`,
       tone: staleBoard ? "amber" : "emerald",
       href: "/app/workspace/whiteboard",
       cta: context.whiteboardReference.noteCount > 0 ? "Open Capture" : "Start Capture",
@@ -310,11 +317,11 @@ function buildOperationsFeed(
       title: context?.presentationReference?.title
         ? `Review ${truncateText(context.presentationReference.title, 36)}`
         : context?.weakConcepts?.[0]
-          ? `Resolve ${truncateText(context.weakConcepts[0], 36)}`
-          : "Review the active thread",
+          ? `Clarify ${truncateText(context.weakConcepts[0], 36)}`
+          : "Review this workspace",
       body: context?.presentationReference?.title
         ? "Confidence dropped around the active presentation, so the fastest win is to clarify what the deck is trying to accomplish."
-        : "The last work cycle lost confidence, so the next move should resolve the unclear part before you widen scope again.",
+        : "The last session ended without a clear next move, so resolve the unclear part before you widen scope again.",
       tone: "violet",
       href: context?.presentationReference?.title ? "/app/workspace/presentations" : buildWorkspaceChatHref("Help me review the recent low-confidence work and turn it into one clear next step.", "Low-confidence runs should become one bounded action."),
       cta: context?.presentationReference?.title ? "Review now" : "Resolve now",
@@ -328,7 +335,7 @@ function buildOperationsFeed(
     items.push({
       title: context?.presentationReference?.title
         ? `Continue ${truncateText(context.presentationReference.title, 36)}`
-        : `Continue the current thread`,
+        : `Continue ${truncateText(context?.whiteboardReference?.workspaceGoal || context?.weakConcepts?.[0] || "this workspace", 36)}`,
       body: latest.role === "assistant"
         ? truncateText(latest.content, 140)
         : `Last session ended with ${truncateText(latest.content, 120)}`,
@@ -342,7 +349,7 @@ function buildOperationsFeed(
   if (!items.length && runs.length) {
     items.push({
       title: "Review workspace structure",
-      body: "Recent work exists, but the next step is still not clear. Tighten the active thread until one action stands out.",
+      body: "Recent work exists, but the next step is still not clear. Tighten this workspace until one action stands out.",
       tone: "amber",
       href: "/app/workspace/operations",
       cta: "Review now",
@@ -380,7 +387,7 @@ function buildFocusQueue(context: WorkspaceContext | null, lowConfidenceRuns: nu
     items.push({
       title: `Clarify ${truncateText(context.weakConcepts[0], 40)}`,
       detail: "Turn the unclear part into a concrete plan or explanation before it keeps resurfacing.",
-      href: buildWorkspaceChatHref(`Help me resolve the weak thread around ${context.weakConcepts[0]} and turn it into an execution-ready plan.`, "Weak threads should become actionable, not just remembered."),
+      href: buildWorkspaceChatHref(`Help me clarify the project issue around ${context.weakConcepts[0]} and turn it into an execution-ready plan.`, "Unclear project issues should become actionable, not just remembered."),
       cta: "Clarify now",
     });
   }
@@ -402,8 +409,8 @@ function buildFocusQueue(context: WorkspaceContext | null, lowConfidenceRuns: nu
 
   if (!items.length) {
     items.push({
-      title: "Create the first operational thread",
-      detail: "The fastest way to make the workspace sticky is to seed one active board, one command, or one operational artifact that you can reopen tomorrow.",
+      title: "Start a new workspace",
+      detail: "The fastest way to make Mate-E useful is to seed one active workspace you can reopen tomorrow.",
       href: "/app/workspace/operations",
       cta: "Start operations",
     });
@@ -435,15 +442,15 @@ function buildPriorityReason(
     return `Confidence dropped after the last review, so ${context.presentationReference.title} should be clarified before anything else competes for attention.`;
   }
   if (context?.weakConcepts?.[0]) {
-    return `${truncateText(context.weakConcepts[0], 120)} is still unresolved, so clearing that thread will reduce repeated drift.`;
+    return `${truncateText(context.weakConcepts[0], 120)} is still unresolved, so clearing that project issue will reduce repeated drift.`;
   }
   if (context?.whiteboardReference?.workspaceGoal) {
-    return `${context.whiteboardReference.workspaceGoal} is already the active thread. Tightening it now is the fastest path to a better next move.`;
+    return `${context.whiteboardReference.workspaceGoal} is already the active workspace focus. Tightening it now is the fastest path to a better next move.`;
   }
   if (runs[0]?.title) {
-    return `${runs[0].title} was the latest active work. The next step should stay close to that thread instead of starting something new.`;
+    return `${runs[0].title} was the latest active work. The next step should stay close to that project instead of starting something new.`;
   }
-  return `${nextStepLabel} is the clearest move because the workspace still needs one active thread before Mate-E can prioritize more aggressively.`;
+  return `${nextStepLabel} is the clearest move because the workspace still needs one active project before Mate-E can prioritize more aggressively.`;
 }
 
 function isOlderThanDays(value: string, days: number) {

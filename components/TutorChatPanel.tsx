@@ -78,6 +78,7 @@ export default function TutorChatPanel() {
   const [showComposer, setShowComposer] = useState(false);
 
   const isWorkspaceRoute = pathname?.startsWith("/app") ?? false;
+  const isExecuteRoute = pathname === "/app/workspace";
   const deckId = useMemo(() => extractDeckId(pathname), [pathname]);
   const isDeckStudyRoute = Boolean(deckId);
   const focusConcept = searchParams.get("concept");
@@ -238,7 +239,7 @@ export default function TutorChatPanel() {
     lastStarterPromptRef.current = routeKey;
   }, [isWorkspaceRoute, routeKey, starterPrompt]);
 
-  if (!isWorkspaceRoute || !enabled) return null;
+  if (!isWorkspaceRoute || !enabled || isExecuteRoute) return null;
 
   const summaryLabel = buildSummaryLabel({ pathname, deckId, deckTitle: context?.deckTitle ?? null });
   const latestAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant") ?? null;
@@ -416,7 +417,7 @@ export default function TutorChatPanel() {
                       className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
                       disabled={sending || !draft.trim()}
                     >
-                      {sending ? "Working..." : "Ask Mate-E"}
+                      {sending ? "Working..." : "Run request"}
                     </button>
                   </div>
                 </form>
