@@ -1,4 +1,3 @@
-import Link from "next/link";
 import WorkspaceSectionNav from "@/components/WorkspaceSectionNav";
 import WorkspaceOperationsConsole from "@/components/WorkspaceOperationsConsole";
 
@@ -32,19 +31,9 @@ export default async function WorkspaceOperationsPage({
     <div className="mx-auto flex max-w-6xl flex-col gap-8 p-6">
       <WorkspaceSectionNav currentPath="/app/workspace/operations" />
 
-      <section className="rounded-[2rem] border border-cyan-200 bg-gradient-to-br from-cyan-50 via-white to-sky-50 p-7 shadow-sm">
+      <section className="rounded-[2rem] border border-cyan-200 bg-white p-7 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-800">Organize</p>
         <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">Help me make a plan.</h1>
-        <div className="mt-6 flex flex-wrap gap-2 text-sm text-slate-700">
-          <span className="rounded-full border border-cyan-200 bg-white px-3 py-1.5">Launch Android app</span>
-          <span className="rounded-full border border-cyan-200 bg-white px-3 py-1.5">Build XR demo</span>
-          <span className="rounded-full border border-cyan-200 bg-white px-3 py-1.5">Create study roadmap</span>
-        </div>
-        <div className="mt-6">
-          <Link href="/app/workspace" className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-900 hover:bg-white">
-            Back to Execute
-          </Link>
-        </div>
       </section>
 
       <WorkspaceOperationsConsole initialBuilder={initialBuilder} initialState={initialState} simpleMode />
