@@ -16,9 +16,11 @@ export default function CreateForm({
 }) {
   const API_BODY_LIMIT = 4 * 1024 * 1024; // ~4MB body limit for serverless; larger videos will be uploaded to Blob
   const [pending, setPending] = useState(false);
+  const isMinimalCapture = lockedGenerationMode === "notes";
   const [intakeMode, setIntakeMode] = useState<IntakeMode>("paste");
   const [pasteContent, setPasteContent] = useState("");
   const [writtenContent, setWrittenContent] = useState("");
+  const [captureContent, setCaptureContent] = useState("");
   const [uploadKind, setUploadKind] = useState<UploadKind>("pdf");
   const [uploadName, setUploadName] = useState("");
   const [cardCount, setCardCount] = useState(20); // Default 20 cards
@@ -83,7 +85,14 @@ export default function CreateForm({
       // Add card count to form data
       fd.append("cardCount", String(cardCount));
 
-      if (intakeMode === "paste") {
+      if (isMinimalCapture) {
+        const normalizedCapture = captureContent.trim();
+        if (normalizedCapture) {
+          fd.append("source", normalizedCapture);
+        }
+      }
+
+      if (!isMinimalCapture && intakeMode === "paste") {
         const normalizedPaste = pasteContent.trim();
         if (normalizedPaste) {
           if (looksLikeUrlInput(normalizedPaste)) {
@@ -94,7 +103,7 @@ export default function CreateForm({
         }
       }
 
-      if (intakeMode === "write") {
+      if (!isMinimalCapture && intakeMode === "write") {
         const normalizedWriting = writtenContent.trim();
         if (normalizedWriting) {
           fd.append("source", normalizedWriting);
@@ -272,6 +281,10 @@ export default function CreateForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {isMinimalCapture ? (
+        <input type="hidden" name="title" value={buildCaptureTitle(captureContent, uploadName)} />
+      ) : null}
+
       {/* Generation mode selector */}
       {lockedGenerationMode ? null : (
         <div>
@@ -302,6 +315,7 @@ export default function CreateForm({
         </div>
       )}
 
+      {isMinimalCapture ? null : (
       <div>
         <label className="text-sm font-medium">Title <span className="text-red-500">*</span></label>
         <input 
@@ -313,9 +327,10 @@ export default function CreateForm({
           maxLength={120}
         />
       </div>
+      )}
 
       {/* AI checkpoint count selector */}
-      {generationMode === "flashcards" && (
+      {!isMinimalCapture && generationMode === "flashcards" && (
         <div>
           <label className="text-sm font-medium">AI checkpoints</label>
           <select
@@ -334,6 +349,61 @@ export default function CreateForm({
         </div>
       )}
 
+      {isMinimalCapture ? (
+        <div className="space-y-4">
+          <textarea
+            ref={writeRef}
+            name="writeContent"
+            rows={12}
+            value={captureContent}
+            onChange={(e) => setCaptureContent(e.target.value)}
+            placeholder="What do you need to remember?"
+            className="min-h-[280px] w-full rounded-[1.5rem] border border-slate-300 px-4 py-4 text-base text-slate-900 outline-none focus:border-slate-900"
+          />
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              ref={uploadRef}
+              id="upload-input"
+              type="file"
+              name="upload"
+              accept=".pptx,.pdf,.srt,.vtt,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/vtt,video/*,audio/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.currentTarget.files?.[0];
+                setUploadName(f ? f.name : "");
+                setUploadKind(classifyUploadKind(f));
+              }}
+            />
+            <button
+              type="button"
+              className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50"
+              onClick={() => uploadRef.current?.click()}
+            >
+              Attach file
+            </button>
+            {uploadName ? (
+              <span className="inline-flex max-w-full items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-700" title={uploadName}>
+                {uploadName}
+              </span>
+            ) : null}
+            {captureContent || uploadName ? (
+              <button
+                type="button"
+                className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                onClick={() => {
+                  setCaptureContent("");
+                  if (uploadRef.current) uploadRef.current.value = "";
+                  setUploadName("");
+                  setUploadKind("pdf");
+                }}
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : (
+      <>
       <div>
         <div className="mt-2 grid gap-2 sm:grid-cols-3">
           {([
@@ -463,16 +533,37 @@ export default function CreateForm({
         </div>
         <div className="mt-2 text-xs text-slate-500">{describeUploadKind(uploadKind)}</div>
       </div>
+        </>
+      )}
 
       <button className="px-4 py-2 rounded bg-black text-white disabled:opacity-60" type="submit" disabled={pending}>
         {pending 
           ? "Preparing..." 
-          : generationMode === "flashcards" 
+          : isMinimalCapture
+            ? "Save capture"
+            : generationMode === "flashcards" 
             ? "Build AI checkpoints" 
             : "Build workspace briefing"}
       </button>
     </form>
   );
+}
+
+function buildCaptureTitle(content: string, uploadName: string) {
+  const firstLine = content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+
+  if (firstLine) {
+    return firstLine.slice(0, 120);
+  }
+
+  if (uploadName.trim()) {
+    return `Capture: ${uploadName.trim()}`.slice(0, 120);
+  }
+
+  return "Workspace capture";
 }
 
 function looksLikeUrlInput(value: string) {

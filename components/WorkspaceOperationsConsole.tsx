@@ -167,15 +167,17 @@ export default function WorkspaceOperationsConsole({
   const [activeBuilder, setActiveBuilder] = useState<BuilderId>(normalizedInitialBuilder);
   const [state, setState] = useState<BuildState>(normalizedInitialState);
   const [hasGenerated, setHasGenerated] = useState(Boolean(normalizedInitialState.objective.trim()));
+  const [showContext, setShowContext] = useState(Boolean(normalizedInitialState.sourceMaterial.trim()));
   const activeBuilderConfig = builders.find((builder) => builder.id === activeBuilder) ?? builders[0];
 
   useEffect(() => {
     setActiveBuilder(normalizedInitialBuilder);
     setState(normalizedInitialState);
     setHasGenerated(Boolean(normalizedInitialState.objective.trim()));
+    setShowContext(Boolean(normalizedInitialState.sourceMaterial.trim()));
   }, [normalizedInitialBuilder, normalizedInitialState]);
 
-  const artifact = useMemo(() => buildArtifact(activeBuilder, state), [activeBuilder, state]);
+  const artifact = useMemo(() => buildArtifact(activeBuilder, state, simpleMode), [activeBuilder, state, simpleMode]);
   const signals = useMemo(() => buildSignals(activeBuilder, state), [activeBuilder, state]);
   const chatHref = useMemo(() => buildWorkspaceChatHref(activeBuilder, state, artifact), [activeBuilder, artifact, state]);
 
@@ -200,7 +202,7 @@ export default function WorkspaceOperationsConsole({
       ...current,
       objective,
       sourceMaterial: current.sourceMaterial.trim() || objective,
-      deliverables: current.deliverables.trim() || "Milestones, tasks, risks, and timeline",
+      deliverables: current.deliverables.trim() || "Next actions, owners, checkpoints",
     }));
     setHasGenerated(true);
   }
@@ -257,8 +259,8 @@ export default function WorkspaceOperationsConsole({
                 <textarea
                   value={state.objective}
                   onChange={(event) => updateField("objective", event.target.value)}
-                  placeholder="Launch Android app"
-                  className="mt-2 min-h-[104px] w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
+                  placeholder="What needs to get done?"
+                  className="mt-2 min-h-[200px] w-full rounded-[1.5rem] border border-slate-300 px-4 py-4 text-base text-slate-900 outline-none focus:border-slate-900"
                 />
               ) : (
                 <input
@@ -271,14 +273,25 @@ export default function WorkspaceOperationsConsole({
             </label>
 
             {simpleMode ? (
-              <label className="block text-sm font-medium text-slate-800">
-                <textarea
-                  value={state.sourceMaterial}
-                  onChange={(event) => updateField("sourceMaterial", event.target.value)}
-                  placeholder="Context"
-                  className="mt-2 min-h-[128px] w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
-                />
-              </label>
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowContext((current) => !current)}
+                  className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50"
+                >
+                  {showContext ? "Hide context" : "Add context"}
+                </button>
+                {showContext ? (
+                  <label className="mt-4 block text-sm font-medium text-slate-800">
+                    <textarea
+                      value={state.sourceMaterial}
+                      onChange={(event) => updateField("sourceMaterial", event.target.value)}
+                      placeholder="Anything else Mate-E should know?"
+                      className="mt-2 min-h-[128px] w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
+                    />
+                  </label>
+                ) : null}
+              </div>
             ) : (
               <>
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -370,23 +383,25 @@ export default function WorkspaceOperationsConsole({
                 : "rounded-full bg-slate-300 px-4 py-2 text-sm font-medium text-slate-600"
               }
             >
-              {simpleMode ? "Generate plan" : artifact.primaryCta}
+              {simpleMode ? "Make plan" : artifact.primaryCta}
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                setState(normalizedInitialState);
-                setHasGenerated(Boolean(normalizedInitialState.objective.trim()));
-              }}
-              className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50"
-            >
-              Reset inputs
-            </button>
+            {simpleMode ? null : (
+              <button
+                type="button"
+                onClick={() => {
+                  setState(normalizedInitialState);
+                  setHasGenerated(Boolean(normalizedInitialState.objective.trim()));
+                }}
+                className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50"
+              >
+                Reset inputs
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      {shouldShowArtifact ? <BuilderSurface artifact={artifact as Exclude<BuilderArtifact, EmptyArtifact>} /> : null}
+      {shouldShowArtifact ? <BuilderSurface artifact={artifact as Exclude<BuilderArtifact, EmptyArtifact>} compact={simpleMode} /> : null}
     </section>
   );
 }
@@ -418,9 +433,9 @@ function normalizeBuildState(value?: Partial<BuildState>, simpleMode = false) {
   } satisfies BuildState;
 }
 
-function BuilderSurface({ artifact }: { artifact: Exclude<BuilderArtifact, EmptyArtifact> }) {
+function BuilderSurface({ artifact, compact = false }: { artifact: Exclude<BuilderArtifact, EmptyArtifact>; compact?: boolean }) {
   if (artifact.kind === "execution-plan") {
-    return <ExecutionPlanSurface artifact={artifact} />;
+    return <ExecutionPlanSurface artifact={artifact} compact={compact} />;
   }
 
   if (artifact.kind === "sprint-builder") {
@@ -434,20 +449,58 @@ function BuilderSurface({ artifact }: { artifact: Exclude<BuilderArtifact, Empty
   return <TaskSystemSurface artifact={artifact} />;
 }
 
-function ExecutionPlanSurface({ artifact }: { artifact: ExecutionArtifact }) {
+function ExecutionPlanSurface({ artifact, compact = false }: { artifact: ExecutionArtifact; compact?: boolean }) {
+  if (compact) {
+    const primaryCheckpoint = artifact.milestones[0] || artifact.signal;
+
+    return (
+      <div className="space-y-4">
+        <div className="rounded-[2rem] border border-cyan-200 bg-gradient-to-br from-cyan-50 via-white to-sky-50 p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800">Project</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{artifact.title}</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-700">{artifact.summary}</p>
+          <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
+            <span className="rounded-full border border-cyan-200 bg-white/90 px-3 py-1">{artifact.metaLine}</span>
+            <span className="rounded-full border border-slate-200 bg-white/90 px-3 py-1">{artifact.signal}</span>
+          </div>
+        </div>
+
+        <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Next actions</p>
+          <div className="mt-4 space-y-3">
+            {artifact.criticalPath.map((item) => (
+              <div key={item} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">
+                {item}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Checkpoint</p>
+          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-700">
+            {primaryCheckpoint}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="rounded-[2rem] border border-cyan-200 bg-gradient-to-br from-cyan-50 via-white to-sky-50 p-5 shadow-sm">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800">Plan structure</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800">{compact ? "Plan" : "Plan structure"}</p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{artifact.title}</h2>
             <p className="mt-2 text-sm leading-6 text-slate-700">{artifact.summary}</p>
           </div>
-          <div className="rounded-2xl border border-cyan-200 bg-white/90 px-3 py-2 text-right text-xs text-slate-600">
-            <div>{artifact.metaLine}</div>
-            <div className="mt-1">{artifact.signal}</div>
-          </div>
+          {compact ? null : (
+            <div className="rounded-2xl border border-cyan-200 bg-white/90 px-3 py-2 text-right text-xs text-slate-600">
+              <div>{artifact.metaLine}</div>
+              <div className="mt-1">{artifact.signal}</div>
+            </div>
+          )}
         </div>
 
         <div className="mt-5 flex flex-wrap items-center gap-3 overflow-x-auto pb-2">
@@ -472,7 +525,7 @@ function ExecutionPlanSurface({ artifact }: { artifact: ExecutionArtifact }) {
 
       <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
         <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Critical Path</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{compact ? "Next actions" : "Critical Path"}</p>
           <div className="mt-4 space-y-3">
             {artifact.criticalPath.map((item) => (
               <div key={item} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">
@@ -482,7 +535,7 @@ function ExecutionPlanSurface({ artifact }: { artifact: ExecutionArtifact }) {
           </div>
         </div>
         <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Milestones</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{compact ? "Upcoming" : "Milestones"}</p>
           <div className="mt-4 space-y-3">
             {artifact.milestones.map((item) => (
               <div key={item} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">
@@ -493,7 +546,7 @@ function ExecutionPlanSurface({ artifact }: { artifact: ExecutionArtifact }) {
         </div>
       </div>
 
-      <FeedPanel items={artifact.feed} title="Organize signals" />
+      {compact ? null : <FeedPanel items={artifact.feed} title="Organize signals" />}
     </div>
   );
 }
@@ -701,14 +754,14 @@ function FeedPanel({ items, title }: { items: FeedItem[]; title: string }) {
   );
 }
 
-function buildArtifact(builderId: BuilderId, state: BuildState): BuilderArtifact {
+function buildArtifact(builderId: BuilderId, state: BuildState, compact = false): BuilderArtifact {
   const readiness = getBuilderReadiness(builderId, state);
   if (!readiness.ready) {
     return buildEmptyArtifact(builderId, readiness.missingInputs);
   }
 
   if (builderId === "execution-plan") {
-    return buildExecutionArtifact(state);
+    return buildExecutionArtifact(state, compact);
   }
 
   if (builderId === "sprint-builder") {
@@ -722,7 +775,11 @@ function buildArtifact(builderId: BuilderId, state: BuildState): BuilderArtifact
   return buildTaskArtifact(state);
 }
 
-function buildExecutionArtifact(state: BuildState): ExecutionArtifact {
+function buildExecutionArtifact(state: BuildState, compact = false): ExecutionArtifact {
+  if (compact) {
+    return buildCompactExecutionArtifact(state);
+  }
+
   const objective = state.objective.trim();
   const deadline = state.deadline.trim() || "No deadline set";
   const owners = tokenize(state.owners);
@@ -758,6 +815,43 @@ function buildExecutionArtifact(state: BuildState): ExecutionArtifact {
       { title: "Plan structure generated", body: "Phases now have owner lanes and a visible sequence instead of a prose-only plan.", tone: "stable" },
       { title: "Dependency pressure present", body: constraints[0] ? `${constraints[0]} is already affecting the downstream path.` : "The next best move is to name the first blocker explicitly.", tone: "attention" },
       { title: "Critical path exposed", body: "The execution surface now shows where the plan will stall first if dependencies are not resolved.", tone: "risk" },
+    ],
+  };
+}
+
+function buildCompactExecutionArtifact(state: BuildState): ExecutionArtifact {
+  const objective = state.objective.trim();
+  const deadline = state.deadline.trim();
+  const owners = tokenize(state.owners);
+  const deliverables = tokenize(state.deliverables);
+  const constraints = tokenize(state.constraints);
+  const sourceTasks = extractTaskLines(state.sourceMaterial);
+  const nextActions = [
+    sourceTasks[0],
+    deliverables[0] ? `Finish ${deliverables[0]}` : "Define what done looks like",
+    constraints[0] ? `Remove blocker: ${constraints[0]}` : owners[0] ? `Confirm ${owners[0]} owns the next move` : "Assign one owner and one checkpoint",
+  ].filter(Boolean) as string[];
+  const upcoming = [
+    deadline ? `Reach the first checkpoint by ${deadline}` : "Set the first checkpoint date",
+    deliverables[1] ? `Review ${deliverables[1]}` : deliverables[0] ? `Review ${deliverables[0]}` : "Review progress after the first action lands",
+    owners[0] ? `${owners[0]} confirms scope and timing` : "Tighten scope before adding more work",
+  ];
+
+  return {
+    kind: "execution-plan",
+    title: truncateText(objective, 96),
+    summary: `Project plan for ${objective}. Start with the next concrete move, then lock the checkpoint after it.`,
+    metaLine: `${nextActions.length} actions ready`,
+    signal: constraints[0] ? `Watch ${constraints[0]}` : deadline ? `Checkpoint ${deadline}` : "Ready to move",
+    ready: true,
+    primaryCta: "Refine project in workspace chat",
+    phases: [],
+    milestones: upcoming,
+    criticalPath: nextActions,
+    feed: [
+      { title: "Project plan generated", body: "The plan is now compressed to the next concrete actions and the next checkpoint.", tone: "stable" },
+      { title: "Next move identified", body: nextActions[0] || "The project now has a concrete starting move instead of a blank planning surface.", tone: "attention" },
+      { title: "Checkpoint exposed", body: upcoming[0], tone: "risk" },
     ],
   };
 }

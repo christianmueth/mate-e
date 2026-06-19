@@ -208,6 +208,7 @@ const DEFAULT_BOARD_IMAGE_HEIGHT = 220;
 const MIN_BOARD_IMAGE_WIDTH = 96;
 const MIN_BOARD_IMAGE_HEIGHT = 72;
 const HISTORY_LIMIT = 40;
+const DEFAULT_BOARD_NAME = "Capture board";
 
 const BOARD_PRESETS: Array<{
   id: BoardPresetId;
@@ -341,13 +342,13 @@ export default function WorkspaceWhiteboard() {
   const [remoteSavedAt, setRemoteSavedAt] = useState<string | null>(null);
   const [remoteBoards, setRemoteBoards] = useState<RemoteBoardSummary[]>([]);
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
-  const [boardName, setBoardName] = useState("Untitled board");
+  const [boardName, setBoardName] = useState(DEFAULT_BOARD_NAME);
   const [renamingBoardId, setRenamingBoardId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
-  const [showControlsPanel, setShowControlsPanel] = useState(true);
-  const [showCopilot, setShowCopilot] = useState(true);
+  const [showControlsPanel, setShowControlsPanel] = useState(false);
+  const [showCopilot, setShowCopilot] = useState(false);
   const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(null);
   const [isCompactViewport, setIsCompactViewport] = useState(false);
   const [workspaceContext, setWorkspaceContext] = useState<WorkspaceContext>(() => readWorkspaceContext());
@@ -526,7 +527,7 @@ export default function WorkspaceWhiteboard() {
     setViewportOffset({ x: 0, y: 0 });
     clearSelection();
     setActiveBoardId(null);
-    setBoardName("Untitled board");
+    setBoardName(DEFAULT_BOARD_NAME);
     setRemoteSavedAt(null);
     undoStackRef.current = [];
     redoStackRef.current = [];
@@ -607,7 +608,7 @@ export default function WorkspaceWhiteboard() {
         ...currentContext,
         whiteboardReference: {
           boardId: activeBoardId,
-          boardName: boardName.trim() || "Untitled board",
+          boardName: boardName.trim() || DEFAULT_BOARD_NAME,
           workspaceGoal: workspaceGoal.trim() || null,
           noteCount: notes.length,
           shapeCount: shapes.length,
@@ -705,7 +706,7 @@ export default function WorkspaceWhiteboard() {
         setRemoteSavedAt(data.savedAt || null);
         if (data.boardId) {
           setActiveBoardId(data.boardId);
-          setBoardName(data.boardName || "Untitled board");
+          setBoardName(data.boardName || DEFAULT_BOARD_NAME);
         }
         if (data.snapshot && !hasLocalSnapshot) {
           historySuspendRef.current = true;
@@ -759,7 +760,7 @@ export default function WorkspaceWhiteboard() {
     } else if (command === "image") {
       commandPromise = generateBoardImageFromPrompt({ prompt: prompt.trim(), workspaceGoal: commandGoal.trim() || workspaceGoal });
     } else if (command === "prefill") {
-      toast.success("Whiteboard prompt loaded into Workspace Copilot.");
+      toast.success("Whiteboard prompt loaded into the assistant.");
     }
 
     if (commandPromise) {
@@ -1852,7 +1853,7 @@ export default function WorkspaceWhiteboard() {
         throw new Error(data?.error || "We couldn't save your board to your account.");
       }
       setActiveBoardId(data.boardId || null);
-      setBoardName(data.boardName || boardName || "Untitled board");
+      setBoardName(data.boardName || boardName || DEFAULT_BOARD_NAME);
       setRemoteSavedAt(data.savedAt || new Date().toISOString());
       const refreshed = await refreshRemoteBoards(data.boardId || activeBoardId);
       setRemoteBoards(refreshed.boards || []);
@@ -1880,7 +1881,7 @@ export default function WorkspaceWhiteboard() {
       }
       restoreSnapshot(sanitizePersistedState(data.snapshot));
       setActiveBoardId(data.boardId || null);
-      setBoardName(data.boardName || "Untitled board");
+      setBoardName(data.boardName || DEFAULT_BOARD_NAME);
       setRemoteSavedAt(data.savedAt || null);
       toast.success("Loaded your saved board from your account.");
     } catch (error) {
@@ -1953,11 +1954,11 @@ export default function WorkspaceWhiteboard() {
       <section className="rounded-[2rem] border border-slate-200 bg-white/85 p-4 shadow-sm backdrop-blur">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">AI Canvas</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Board</p>
             <input
               value={boardName}
               onChange={(event) => setBoardName(event.target.value)}
-              placeholder="Untitled board"
+              placeholder={DEFAULT_BOARD_NAME}
               className="mt-2 w-full max-w-xl border-0 bg-transparent p-0 text-2xl font-semibold tracking-tight text-slate-950 outline-none placeholder:text-slate-400"
             />
             <p className="mt-2 text-xs text-slate-500">{activeBoardId ? "Saved board" : "Unsaved board"} • {boardSummary}</p>
@@ -1971,10 +1972,10 @@ export default function WorkspaceWhiteboard() {
               Share
             </button>
             <button type="button" onClick={() => setShowControlsPanel((current) => !current)} className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50">
-              {showControlsPanel ? "Hide controls" : "Show controls"}
+              {showControlsPanel ? "Hide tools" : "Tools"}
             </button>
             <button type="button" onClick={() => setShowCopilot((current) => !current)} className="rounded-full border border-cyan-300 bg-cyan-50 px-4 py-2 text-sm font-medium text-cyan-950 hover:bg-cyan-100">
-              {showCopilot ? "Hide AI Assist" : "AI Assist"}
+              {showCopilot ? "Hide assistant" : "Assistant"}
             </button>
             <button type="button" onClick={undoBoardState} disabled={!canUndo} className="rounded-full border border-slate-300 px-3 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50 disabled:opacity-50">
               Undo
@@ -2062,8 +2063,8 @@ export default function WorkspaceWhiteboard() {
               <div className={isCompactViewport ? "max-h-[60vh] overflow-y-auto p-4" : "max-h-[calc(100vh-13rem)] overflow-y-auto p-4"}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Whiteboard Controls</p>
-                    <p className="mt-1 text-sm text-slate-600">Board tools, layout, assets, and saved board actions in one place.</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Tools</p>
+                    <p className="mt-1 text-sm text-slate-600">Board setup, saved boards, and assets.</p>
                   </div>
                   <button type="button" onClick={() => setShowControlsPanel(false)} className="rounded-full border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
                     Hide
@@ -2223,7 +2224,7 @@ export default function WorkspaceWhiteboard() {
                         <label className="mt-3 block text-xs font-medium text-slate-700">
                           Add image to board
                           <input type="file" accept="image/*" onChange={handleBoardImageAttachment} className="mt-2 block w-full text-xs text-slate-600" />
-                          <span className="mt-2 block text-[11px] text-slate-500">Paste copied images with Ctrl+V or use the AI image action in Workspace Copilot.</span>
+                          <span className="mt-2 block text-[11px] text-slate-500">Paste copied images with Ctrl+V or use the assistant image action.</span>
                         </label>
                         {sourceAttachmentName ? (
                           <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-xs text-slate-600">
@@ -2441,7 +2442,7 @@ export default function WorkspaceWhiteboard() {
                 <div className="flex h-full flex-col">
                 <div className="flex items-center justify-between gap-3">
                   <div className="px-4 pt-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700">Copilot</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-700">Assistant</p>
                   </div>
                   <button type="button" onClick={() => setShowCopilot(false)} className="mr-4 mt-4 rounded-full border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
                     Hide
@@ -2572,7 +2573,7 @@ export default function WorkspaceWhiteboard() {
                 ? "absolute bottom-24 right-3 z-20 rounded-full border border-cyan-300 bg-white/95 px-4 py-2 text-sm font-medium text-cyan-950 shadow-lg backdrop-blur hover:bg-white"
                 : "absolute bottom-4 right-4 z-20 rounded-full border border-cyan-300 bg-white/90 px-4 py-2 text-sm font-medium text-cyan-950 shadow-lg backdrop-blur hover:bg-white md:bottom-6 md:right-6"
               }>
-                Copilot
+                Assistant
               </button>
             )}
 
