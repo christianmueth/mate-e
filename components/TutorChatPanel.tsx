@@ -308,7 +308,7 @@ export default function TutorChatPanel() {
           <div>
             <div className="flex items-start justify-between gap-3 px-4 py-4">
               <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Mate-E Recommendation</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Next move</p>
                 <h2 className="mt-1 text-lg font-semibold text-slate-950">{recommendation.title}</h2>
                 <p className="mt-1 text-sm text-slate-600">{recommendation.subtitle}</p>
               </div>
@@ -331,9 +331,9 @@ export default function TutorChatPanel() {
               </div>
 
               <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Suggested next step</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Suggested action</p>
                 <p className="mt-2 text-sm font-medium text-slate-950">{recommendation.nextAction}</p>
-                <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Reason</p>
+                <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Why</p>
                 <p className="mt-2 text-sm leading-6 text-slate-700">{recommendation.risk}</p>
               </div>
 
@@ -355,7 +355,7 @@ export default function TutorChatPanel() {
                 <summary className="cursor-pointer text-sm font-medium text-slate-900">Show more</summary>
                 <div className="mt-4 space-y-4">
                   <div className="text-sm text-slate-700">
-                    <p><span className="font-medium text-slate-950">Last working on:</span> {recommendation.lastWorkedOn}</p>
+                    <p><span className="font-medium text-slate-950">Last project:</span> {recommendation.lastWorkedOn}</p>
                     <p className="mt-2"><span className="font-medium text-slate-950">Last active:</span> {recommendation.lastUpdated}</p>
                     <p className="mt-2"><span className="font-medium text-slate-950">Changes since then:</span> {recommendation.changes}</p>
                   </div>
@@ -380,7 +380,7 @@ export default function TutorChatPanel() {
                 </div>
               ) : latestAssistantMessage ? (
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-700">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Mate-E note</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Note</p>
                   <p className="mt-2 whitespace-pre-wrap">{latestAssistantMessage.content}</p>
                 </div>
                   ) : null}
@@ -394,7 +394,7 @@ export default function TutorChatPanel() {
                   className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
                   onClick={() => setShowComposer((current) => !current)}
                 >
-                  {showComposer ? "Hide custom" : "Custom request"}
+                  {showComposer ? "Hide custom" : "Ask"}
                 </button>
               </div>
 
@@ -409,7 +409,7 @@ export default function TutorChatPanel() {
                   <textarea
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
-                    placeholder="Ask for a custom recommendation"
+                    placeholder="Ask for a specific next move"
                     className="min-h-[76px] w-full rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
                   />
                   <div className="flex justify-end">
@@ -418,7 +418,7 @@ export default function TutorChatPanel() {
                       className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
                       disabled={sending || !draft.trim()}
                     >
-                      {sending ? "Working..." : "Run request"}
+                      {sending ? "Working..." : "Ask"}
                     </button>
                   </div>
                 </form>
@@ -431,8 +431,8 @@ export default function TutorChatPanel() {
             className="w-[15.75rem] rounded-[1.35rem] border border-slate-200 bg-white/95 p-4 text-left shadow-[0_10px_24px_rgba(15,23,42,0.12)] hover:bg-white"
             onClick={() => setOpen(true)}
           >
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Mate-E</p>
-            <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Next recommendation</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Next move</p>
+            <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Open</p>
             <p className="mt-2 text-sm font-semibold text-slate-950">{recommendation.nextAction}</p>
             <p className="mt-2 text-xs text-slate-600">{recommendation.currentGoal}</p>
             <p className="mt-3 text-xs font-medium text-slate-700">Expand</p>
@@ -467,8 +467,8 @@ function buildSummaryLabel({
   deckTitle: string | null;
 }) {
   if (pathname?.startsWith("/app/workspace/whiteboard")) return "capture";
-  if (pathname?.startsWith("/app/workspace/operations") || pathname?.startsWith("/app/workspace/presentations")) return "organize";
-  if (pathname === "/app/workspace") return "execute";
+  if (pathname?.startsWith("/app/workspace/operations") || pathname?.startsWith("/app/workspace/presentations")) return "plan";
+  if (pathname === "/app/workspace") return "do";
   if (deckId) return deckTitle || "current workspace set";
   return "workspace";
 }
@@ -533,13 +533,13 @@ function buildRecommendationCard({
       ? `Extract action items from ${workspaceState.uploadedAssets[0].name}`
       : board?.workspaceGoal
         ? `Turn ${board.workspaceGoal} into action items`
-        : "Turn the latest capture into tasks";
+        : "Turn the latest capture into actions";
     const risk = board?.noteCount
-      ? "Captured material is still loose until it becomes tasks or themes."
+      ? "Captured material is still loose until it becomes actions or themes."
       : focusReason || "Raw inputs can disappear into the board if they are not structured quickly.";
     return {
-      title: "Intake Assistant",
-      subtitle: "Turn raw input into action.",
+      title: "Turn this into action",
+      subtitle: "Move from raw input to clear actions.",
       modeLabel: "Capture",
       currentGoal,
       nextAction,
@@ -551,8 +551,8 @@ function buildRecommendationCard({
       actions: [
         { label: "Summarize", prompt: `Summarize the current capture around ${currentGoal} and keep it short.`, tone: "primary" },
         { label: "Categorize", prompt: `Categorize the current capture around ${currentGoal} into a few clean themes.`, tone: "secondary" },
-        { label: "Extract Tasks", prompt: `Extract concrete tasks and decisions from the current capture around ${currentGoal}.`, tone: "secondary" },
-        { label: "Action Items", prompt: `Generate the next action items from the current capture around ${currentGoal}.`, tone: "secondary" },
+        { label: "Find actions", prompt: `Extract concrete tasks and decisions from the current capture around ${currentGoal}.`, tone: "secondary" },
+        { label: "Next actions", prompt: `Generate the next action items from the current capture around ${currentGoal}.`, tone: "secondary" },
       ],
     };
   }
@@ -562,14 +562,14 @@ function buildRecommendationCard({
       ? presentation.outlineCount < 4
         ? `Clarify the learning objectives for ${presentation.title}`
         : `Plan the next section of ${presentation.title}`
-      : `Turn ${currentGoal} into a working plan`;
+      : `Break ${currentGoal} into actions`;
     const risk = presentation && presentation.outlineCount < 4
       ? "The plan still looks thin and may be missing sequence or dependencies."
-      : recentFailure || weakConcept || "A plan without explicit risks and timing will drift.";
+      : recentFailure || weakConcept || "If the next few actions are unclear, this will drift.";
     return {
       title: nextAction,
-      subtitle: currentGoal === nextAction ? "Organize" : `For ${truncateText(currentGoal, 64)}`,
-      modeLabel: "Organize",
+      subtitle: currentGoal === nextAction ? "Plan" : `For ${truncateText(currentGoal, 64)}`,
+      modeLabel: "Plan",
       currentGoal,
       nextAction,
       risk,
@@ -578,10 +578,10 @@ function buildRecommendationCard({
       lastUpdated,
       confidence,
       actions: [
-        { label: "Generate Plan", prompt: `Generate a concise plan for ${currentGoal} with the fewest necessary steps.`, tone: "primary" },
-        { label: "Identify Risks", prompt: `Identify the main risks and blockers for ${currentGoal}.`, tone: "secondary" },
-        { label: "Build Sprint", prompt: `Build a short sprint for ${currentGoal} with the next bounded tasks.`, tone: "secondary" },
-        { label: "Estimate", prompt: `Estimate the timeline and sequence for ${currentGoal}.`, tone: "secondary" },
+        { label: "Create plan", prompt: `Generate a concise plan for ${currentGoal} with the fewest necessary steps.`, tone: "primary" },
+        { label: "Find blockers", prompt: `Identify the main risks and blockers for ${currentGoal}.`, tone: "secondary" },
+        { label: "Break into actions", prompt: `Break ${currentGoal} into a short list of next actions.`, tone: "secondary" },
+        { label: "Sequence work", prompt: `Estimate the timeline and sequence for ${currentGoal}.`, tone: "secondary" },
       ],
     };
   }
@@ -604,9 +604,9 @@ function buildRecommendationCard({
         : "No dominant blocker is recorded, so the risk is drift through indecision.";
 
   return {
-    title: "Chief of Staff",
-    subtitle: "What should happen next?",
-    modeLabel: "Execute",
+    title: "Next move",
+    subtitle: "Keep this moving.",
+    modeLabel: "Do",
     currentGoal,
     nextAction,
     risk,

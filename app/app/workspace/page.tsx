@@ -162,8 +162,8 @@ export default async function WorkspacePage() {
       <WorkspaceSectionNav currentPath="/app/workspace" />
 
       <section className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950 p-7 text-white shadow-[0_24px_90px_rgba(15,23,42,0.28)]">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">Execute</p>
-        <h1 className="mt-3 max-w-3xl text-3xl font-semibold tracking-tight sm:text-4xl">What should happen next?</h1>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">Do</p>
+        <h1 className="mt-3 max-w-3xl text-3xl font-semibold tracking-tight sm:text-4xl">Keep this moving.</h1>
         <div className="mt-6 rounded-[1.75rem] border border-white/12 bg-white/8 p-5 backdrop-blur-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
@@ -180,11 +180,11 @@ export default async function WorkspacePage() {
 
       <section>
         <article className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Current workspace</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Project</p>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{memoryCard.workspaceName}</h2>
           <div className="mt-5 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
             <p className="text-sm leading-6 text-slate-700">Last active: {memoryCard.lastActive}</p>
-            <p className="mt-2 text-sm leading-6 text-slate-700">Progress: {memoryCard.progressLabel}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-700">Status: {memoryCard.progressLabel}</p>
             <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Next action</p>
             <p className="mt-2 text-lg font-semibold text-slate-950">{memoryCard.nextSuggestedStep}</p>
             <div className="mt-5">
@@ -199,7 +199,7 @@ export default async function WorkspacePage() {
       {secondaryActions.length ? (
         <section>
           <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Need something else?</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">More actions</p>
             <div className="mt-4 flex flex-wrap gap-3">
               {secondaryActions.map((item) => (
                 <Link
@@ -255,7 +255,7 @@ function buildOperationsFeed(
   if (!savedAt) {
     items.push({
       title: "Capture your first note",
-      body: "This workspace is empty.",
+      body: "Nothing is here yet.",
       tone: "amber",
       href: "/app/workspace/whiteboard",
       cta: "Start Capture",

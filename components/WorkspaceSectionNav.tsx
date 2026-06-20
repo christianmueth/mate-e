@@ -2,15 +2,15 @@ import Link from "next/link";
 
 const items = [
   {
-    href: "/app/workspace/operations",
-    label: "Organize",
-    matches: ["/app/workspace/operations", "/app/workspace/presentations"],
+    href: "/app/workspace",
+    label: "Do",
+    matches: ["/app/workspace"],
     priority: "primary",
   },
   {
-    href: "/app/workspace",
-    label: "Execute",
-    matches: ["/app/workspace"],
+    href: "/app/workspace/operations",
+    label: "Plan",
+    matches: ["/app/workspace/operations", "/app/workspace/presentations"],
     priority: "primary",
   },
   {

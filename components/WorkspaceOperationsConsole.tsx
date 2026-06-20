@@ -202,7 +202,7 @@ export default function WorkspaceOperationsConsole({
       ...current,
       objective,
       sourceMaterial: current.sourceMaterial.trim() || objective,
-      deliverables: current.deliverables.trim() || "Next actions, owners, checkpoints",
+      deliverables: current.deliverables.trim() || "Next actions and timing",
     }));
     setHasGenerated(true);
   }
@@ -212,7 +212,7 @@ export default function WorkspaceOperationsConsole({
   return (
     <section className={shouldShowArtifact ? "grid gap-5 xl:grid-cols-[0.86fr_1.14fr]" : "grid gap-5"}>
       <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Organize</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Plan</p>
         {simpleMode ? null : (
           <div className="mt-4 flex flex-wrap gap-2">
             {builders.map((builder) => {
@@ -235,12 +235,12 @@ export default function WorkspaceOperationsConsole({
         )}
 
         <div className="mt-5 rounded-3xl border border-slate-200 bg-slate-50 p-4">
-          <h2 className="text-xl font-semibold text-slate-950">{simpleMode ? "What are we planning?" : activeBuilderConfig.title}</h2>
+          <h2 className="text-xl font-semibold text-slate-950">{simpleMode ? "What are you trying to accomplish?" : activeBuilderConfig.title}</h2>
           {simpleMode ? null : <p className="mt-2 text-sm leading-6 text-slate-700">{activeBuilderConfig.subtitle}</p>}
 
           {simpleMode ? null : (
             <div className="mt-4 rounded-3xl border border-cyan-200 bg-cyan-50/70 p-4">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-900">Mate-E organizing read</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-900">Current read</p>
               <div className="mt-3 grid gap-3 md:grid-cols-2">
                 {signals.map((signal) => (
                   <div key={signal.label} className="rounded-2xl border border-cyan-200 bg-white/90 px-3 py-3">
@@ -254,7 +254,7 @@ export default function WorkspaceOperationsConsole({
 
           <div className="mt-5 grid gap-4">
             <label className="block text-sm font-medium text-slate-800">
-              {simpleMode ? "What are we planning?" : "Objective"}
+              {simpleMode ? "What are you trying to accomplish?" : "Objective"}
               {simpleMode ? (
                 <textarea
                   value={state.objective}
@@ -279,14 +279,14 @@ export default function WorkspaceOperationsConsole({
                   onClick={() => setShowContext((current) => !current)}
                   className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50"
                 >
-                  {showContext ? "Hide context" : "Add context"}
+                  {showContext ? "Hide notes" : "Add notes"}
                 </button>
                 {showContext ? (
                   <label className="mt-4 block text-sm font-medium text-slate-800">
                     <textarea
                       value={state.sourceMaterial}
                       onChange={(event) => updateField("sourceMaterial", event.target.value)}
-                      placeholder="Anything else Mate-E should know?"
+                      placeholder="Anything else that matters?"
                       className="mt-2 min-h-[128px] w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
                     />
                   </label>
@@ -383,7 +383,7 @@ export default function WorkspaceOperationsConsole({
                 : "rounded-full bg-slate-300 px-4 py-2 text-sm font-medium text-slate-600"
               }
             >
-              {simpleMode ? "Make plan" : artifact.primaryCta}
+              {simpleMode ? "Create plan" : artifact.primaryCta}
             </button>
             {simpleMode ? null : (
               <button
@@ -451,7 +451,7 @@ function BuilderSurface({ artifact, compact = false }: { artifact: Exclude<Build
 
 function ExecutionPlanSurface({ artifact, compact = false }: { artifact: ExecutionArtifact; compact?: boolean }) {
   if (compact) {
-    const primaryCheckpoint = artifact.milestones[0] || artifact.signal;
+    const primaryNextStep = artifact.milestones[0] || artifact.signal;
 
     return (
       <div className="space-y-4">
@@ -477,9 +477,9 @@ function ExecutionPlanSurface({ artifact, compact = false }: { artifact: Executi
         </div>
 
         <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Checkpoint</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Next step</p>
           <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-700">
-            {primaryCheckpoint}
+            {primaryNextStep}
           </div>
         </div>
       </div>
@@ -829,10 +829,10 @@ function buildCompactExecutionArtifact(state: BuildState): ExecutionArtifact {
   const nextActions = [
     sourceTasks[0],
     deliverables[0] ? `Finish ${deliverables[0]}` : "Define what done looks like",
-    constraints[0] ? `Remove blocker: ${constraints[0]}` : owners[0] ? `Confirm ${owners[0]} owns the next move` : "Assign one owner and one checkpoint",
+    constraints[0] ? `Remove blocker: ${constraints[0]}` : owners[0] ? `Confirm ${owners[0]} owns the next move` : "Assign one owner and one next step",
   ].filter(Boolean) as string[];
   const upcoming = [
-    deadline ? `Reach the first checkpoint by ${deadline}` : "Set the first checkpoint date",
+    deadline ? `Hit the next date by ${deadline}` : "Set the next date",
     deliverables[1] ? `Review ${deliverables[1]}` : deliverables[0] ? `Review ${deliverables[0]}` : "Review progress after the first action lands",
     owners[0] ? `${owners[0]} confirms scope and timing` : "Tighten scope before adding more work",
   ];
@@ -840,18 +840,18 @@ function buildCompactExecutionArtifact(state: BuildState): ExecutionArtifact {
   return {
     kind: "execution-plan",
     title: truncateText(objective, 96),
-    summary: `Project plan for ${objective}. Start with the next concrete move, then lock the checkpoint after it.`,
+    summary: `Project for ${objective}. Start with the next concrete move, then lock the next step after it.`,
     metaLine: `${nextActions.length} actions ready`,
-    signal: constraints[0] ? `Watch ${constraints[0]}` : deadline ? `Checkpoint ${deadline}` : "Ready to move",
+    signal: constraints[0] ? `Watch ${constraints[0]}` : deadline ? `Due ${deadline}` : "Ready to move",
     ready: true,
     primaryCta: "Refine project in workspace chat",
     phases: [],
     milestones: upcoming,
     criticalPath: nextActions,
     feed: [
-      { title: "Project plan generated", body: "The plan is now compressed to the next concrete actions and the next checkpoint.", tone: "stable" },
+      { title: "Project plan generated", body: "The plan is now compressed to the next concrete actions and the next step.", tone: "stable" },
       { title: "Next move identified", body: nextActions[0] || "The project now has a concrete starting move instead of a blank planning surface.", tone: "attention" },
-      { title: "Checkpoint exposed", body: upcoming[0], tone: "risk" },
+      { title: "Next step exposed", body: upcoming[0], tone: "risk" },
     ],
   };
 }

@@ -32,8 +32,8 @@ export default async function WorkspaceOperationsPage({
       <WorkspaceSectionNav currentPath="/app/workspace/operations" />
 
       <section className="rounded-[2rem] border border-cyan-200 bg-white p-7 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-800">Organize</p>
-        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">Help me make a plan.</h1>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-800">Plan</p>
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">Break this down.</h1>
       </section>
 
       <WorkspaceOperationsConsole initialBuilder={initialBuilder} initialState={initialState} simpleMode />

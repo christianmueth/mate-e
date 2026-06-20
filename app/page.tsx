@@ -21,15 +21,8 @@ export default async function Home({
           href={hasClerk ? nextTarget : "/app/workspace"}
           className="w-full max-w-2xl rounded-[1.5rem] border border-teal-200 bg-white px-5 py-4 text-left text-lg text-teal-950 shadow-sm hover:bg-teal-50"
         >
-          Start with a note, plan, or next action...
+          I have a thing. Help me move it forward...
         </Link>
-        <div className="flex flex-wrap items-center justify-center gap-3 text-sm text-teal-900">
-          <span>Capture</span>
-          <span className="text-teal-300">/</span>
-          <span>Organize</span>
-          <span className="text-teal-300">/</span>
-          <span>Execute</span>
-        </div>
         <div className="flex flex-wrap items-center justify-center gap-3">
           {hasClerk ? (
             <HomeClerkAuthControls nextTarget={nextTarget} />
