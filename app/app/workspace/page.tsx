@@ -272,19 +272,19 @@ function buildOperationsFeed(
       title: context.whiteboardReference.noteCount > 0
         ? context.whiteboardReference.workspaceGoal
           ? `Continue ${truncateText(context.whiteboardReference.workspaceGoal, 36)}`
-          : "Define the first workspace objective"
+          : "Name the project"
         : "Capture your first note",
       body: staleBoard
-        ? `This workspace has been idle since ${formatRelativeTime(context.whiteboardReference.updatedAt)}. Reopen it and decide what should move first.`
+        ? `This project has been idle since ${formatRelativeTime(context.whiteboardReference.updatedAt)}. Reopen it and decide what should move first.`
         : context.whiteboardReference.noteCount > 0
           ? context.whiteboardReference.workspaceGoal
-            ? `The current workspace still needs a clearer structure so the next move is obvious.`
-            : `This workspace needs a clear objective before the next step will make sense.`
-          : `No notes have been captured yet for this workspace.`,
+            ? `The current project still needs a clearer structure so the next move is obvious.`
+            : `This project needs a clear objective before the next step will make sense.`
+          : `No notes have been captured yet for this project.`,
       tone: staleBoard ? "amber" : "emerald",
       href: "/app/workspace/whiteboard",
       cta: context.whiteboardReference.noteCount > 0
-        ? context.whiteboardReference.workspaceGoal ? "Continue working" : "Define objective"
+        ? context.whiteboardReference.workspaceGoal ? "Continue working" : "Name project"
         : "Start Capture",
       score: boardScore,
     });
@@ -313,7 +313,7 @@ function buildOperationsFeed(
         ? `Clarify ${truncateText(context.presentationReference.title, 36)}`
         : context?.weakConcepts?.[0]
           ? `Clarify ${truncateText(context.weakConcepts[0], 36)}`
-          : "Define the next workspace step",
+          : "Define the next project step",
       body: context?.presentationReference?.title
         ? "Confidence dropped around the active presentation, so the fastest win is to clarify what the deck is trying to accomplish."
         : "The last session ended without a clear next move, so resolve the unclear part before you widen scope again.",
@@ -330,7 +330,7 @@ function buildOperationsFeed(
     items.push({
       title: context?.presentationReference?.title
         ? `Continue ${truncateText(context.presentationReference.title, 36)}`
-        : deriveWorkspaceName(context) === "Empty workspace"
+        : deriveWorkspaceName(context) === "Empty project"
           ? "Capture your first note"
           : `Continue ${truncateText(deriveWorkspaceName(context), 36)}`,
       body: latest.role === "assistant"
@@ -345,8 +345,8 @@ function buildOperationsFeed(
 
   if (!items.length && runs.length) {
     items.push({
-      title: "Review workspace structure",
-      body: "Recent work exists, but the next step is still not clear. Tighten this workspace until one action stands out.",
+      title: "Review project structure",
+      body: "Recent work exists, but the next step is still not clear. Tighten this project until one action stands out.",
       tone: "amber",
       href: "/app/workspace/operations",
       cta: "Create plan",
@@ -365,7 +365,7 @@ function buildFocusQueue(context: WorkspaceContext | null, lowConfidenceRuns: nu
   if (context?.whiteboardReference?.workspaceGoal) {
     items.push({
       title: `Clarify: ${truncateText(context.whiteboardReference.workspaceGoal, 52)}`,
-      detail: "Your board already has an active focus. Convert that into a cleaner execution model, dependency map, or decision-ready structure.",
+      detail: "This project already has an active focus. Convert that into a cleaner execution model, dependency map, or decision-ready structure.",
       href: "/app/workspace/whiteboard",
       cta: "Continue working",
     });
@@ -406,10 +406,10 @@ function buildFocusQueue(context: WorkspaceContext | null, lowConfidenceRuns: nu
 
   if (!items.length) {
     items.push({
-      title: "Start a new workspace",
-      detail: "The fastest way to make Mate-E useful is to seed one active workspace you can reopen tomorrow.",
+      title: "Start a project",
+      detail: "The fastest way to make Mate-E useful is to seed one active project you can reopen tomorrow.",
       href: "/app/workspace/operations",
-      cta: "New workspace",
+      cta: "New project",
     });
   }
 
@@ -442,12 +442,12 @@ function buildPriorityReason(
     return `${truncateText(context.weakConcepts[0], 120)} is still unresolved, so clearing that project issue will reduce repeated drift.`;
   }
   if (context?.whiteboardReference?.workspaceGoal) {
-    return `${context.whiteboardReference.workspaceGoal} is already the active workspace focus. Tightening it now is the fastest path to a better next move.`;
+    return `${context.whiteboardReference.workspaceGoal} is already the active project focus. Tightening it now is the fastest path to a better next move.`;
   }
   if (runs[0]?.title) {
     return `${runs[0].title} was the latest active work. The next step should stay close to that project instead of starting something new.`;
   }
-  return `${nextStepLabel} is the clearest move because the workspace still needs one active project before Mate-E can prioritize more aggressively.`;
+  return `${nextStepLabel} is the clearest move because this still needs one active project before Mate-E can prioritize more aggressively.`;
 }
 
 function deriveWorkspaceName(context: WorkspaceContext | null) {
@@ -457,12 +457,12 @@ function deriveWorkspaceName(context: WorkspaceContext | null) {
     || context?.weakConcepts?.[0]
     || null;
 
-  if (!preferred) return "Empty workspace";
+  if (!preferred) return "Empty project";
 
   const trimmed = preferred.trim();
-  if (!trimmed) return "Empty workspace";
-  if (/^untitled$/i.test(trimmed) || /^untitled workspace$/i.test(trimmed) || /^board$/i.test(trimmed)) {
-    return "Empty workspace";
+  if (!trimmed) return "Empty project";
+  if (/^untitled$/i.test(trimmed) || /^untitled workspace$/i.test(trimmed) || /^untitled project$/i.test(trimmed) || /^board$/i.test(trimmed)) {
+    return "Empty project";
   }
 
   return trimmed;
@@ -507,7 +507,7 @@ function buildFallbackPrimaryAction(
   if (!board) {
     return {
       title: "Capture your first note",
-      detail: "This workspace is empty.",
+      detail: "This project is empty.",
       href: "/app/workspace/whiteboard",
       cta: "Start Capture",
     };
@@ -517,7 +517,7 @@ function buildFallbackPrimaryAction(
   if (totalMarks === 0) {
     return {
       title: "Capture your first note",
-      detail: "This workspace is empty.",
+      detail: "This project is empty.",
       href: "/app/workspace/whiteboard",
       cta: "Start Capture",
     };
@@ -525,10 +525,10 @@ function buildFallbackPrimaryAction(
 
   if (!board.workspaceGoal) {
     return {
-      title: "Define the first workspace objective",
-      detail: "This workspace needs a clear objective before the next step will make sense.",
+      title: "Name the project",
+      detail: "This project needs a clear objective before the next step will make sense.",
       href: "/app/workspace/whiteboard",
-      cta: "Define objective",
+      cta: "Name project",
     };
   }
 
@@ -543,7 +543,7 @@ function buildFallbackPrimaryAction(
 
   return {
     title: `Continue ${truncateText(board.workspaceGoal, 40)}`,
-    detail: "Keep moving the active workspace while the current decisions are still fresh.",
+    detail: "Keep moving the active project while the current decisions are still fresh.",
     href: "/app/workspace/whiteboard",
     cta: "Continue working",
   };
@@ -551,7 +551,7 @@ function buildFallbackPrimaryAction(
 
 function compactActionLabel(title: string, cta: string) {
   if (/capture/i.test(title) || /capture/i.test(cta)) return "Capture";
-  if (/new workspace/i.test(title) || /new workspace/i.test(cta)) return "New workspace";
+  if (/new project/i.test(title) || /new project/i.test(cta)) return "New project";
   if (/plan/i.test(title) || /plan/i.test(cta) || /operations/i.test(cta)) return "Create plan";
   if (/clarify/i.test(title)) return title;
   return cta;

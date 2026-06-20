@@ -68,7 +68,7 @@ export default function CreateForm({
       const uploadFile = uploadInput?.files?.[0];
       const pdfOrPptx = uploadKind === "pdf" ? uploadFile : null;
       if (pdfOrPptx && pdfOrPptx.size > MAX_FILE_SIZE) {
-        throw new Error(`That file is too large (${(pdfOrPptx.size / 1024 / 1024).toFixed(1)}MB). Keep it under 200MB so your workspace can be prepared reliably.`);
+        throw new Error(`That file is too large (${(pdfOrPptx.size / 1024 / 1024).toFixed(1)}MB). Keep it under 200MB so your project can be prepared reliably.`);
       }
 
       // Clear stale hidden fields from older attempts
@@ -115,12 +115,12 @@ export default function CreateForm({
         if (f && f.size > 0) {
           const sizeMB = f.size / (1024 * 1024);
           const sizeDisplay = sizeMB >= 1 ? `${sizeMB.toFixed(1)}MB` : `${(f.size / 1024).toFixed(0)}KB`;
-          toast.info(`Preparing your workspace material (${sizeDisplay})...`);
+          toast.info(`Preparing your project material (${sizeDisplay})...`);
           try {
             const blob = await uploadViaBlob(f, "doc");
             fd.append("docUrl", blob.url);
             fd.append("docName", f.name || "document");
-            toast.success("Source ready. Building your workspace...");
+            toast.success("Source ready. Building your project...");
           } catch (err: any) {
             console.warn("[Client] Blob doc upload failed:", err?.message || err);
             if (f.size > API_BODY_LIMIT) {
@@ -162,7 +162,7 @@ export default function CreateForm({
           toast.info(`Preparing your audio source (${sizeDisplay})...`);
           const blob = await uploadViaBlob(videoFile, "audio");
           fd.append("audioUrl", blob.url);
-          toast.success("Audio ready. Turning it into workspace guidance...");
+          toast.success("Audio ready. Turning it into project guidance...");
         } else if (actualSize > API_BODY_LIMIT) {
           // Upload to Blob for large videos (direct client upload)
           const sizeMB = videoFile.size / (1024 * 1024);
@@ -184,16 +184,16 @@ export default function CreateForm({
 
           fd.append("videoUrl", blob.url);
           fd.append("videoName", videoFile.name || "video.mp4");
-          toast.success("Video ready. Building workspace guidance may take a few minutes.");
+          toast.success("Video ready. Building project guidance may take a few minutes.");
         } else {
           console.log("[Client] Video small enough, sending directly in request");
           fd.append("video", videoFile);
-          toast.info("Reviewing your video and building your workspace...");
+          toast.info("Reviewing your video and building your project...");
         }
       }
 
       if (!(intakeMode === "upload" && uploadKind === "video")) {
-        toast.info("Preparing your workspace material...");
+        toast.info("Preparing your project material...");
       }
 
       // Route to the appropriate API based on mode
@@ -220,7 +220,7 @@ export default function CreateForm({
         // RunPod serverless can queue jobs; when it doesn't start within our route timeout,
         // the API returns a retryable 503 instead of silently creating fallback content.
         if (res.status === 503 && j?.code === "RUNPOD_IN_QUEUE") {
-          toast.error(`Workspace generation is briefly queued. Please retry in about 30 to 60 seconds.${tid ? ` (traceId: ${tid})` : ""}`);
+          toast.error(`Project generation is briefly queued. Please retry in about 30 to 60 seconds.${tid ? ` (traceId: ${tid})` : ""}`);
           return;
         }
 
@@ -239,7 +239,7 @@ export default function CreateForm({
         }
 
         if (res.status === 504) {
-          toast.error(`Preparing this workspace took too long. Please retry in a moment.${tid ? ` (traceId: ${tid})` : ""}`);
+          toast.error(`Preparing this project took too long. Please retry in a moment.${tid ? ` (traceId: ${tid})` : ""}`);
           return;
         }
 
@@ -247,15 +247,15 @@ export default function CreateForm({
       }
 
       if (generationMode === "notes") {
-        // For workspace briefings, show the result in a viewer
+        // For project briefings, show the result in a viewer
         const data = await res.json();
         if (data.success && data.notes) {
           // Store briefing content in sessionStorage and redirect to a viewer page
           sessionStorage.setItem("latestStudyNotes", JSON.stringify(data));
-          toast.success("Your workspace briefing is ready.");
+          toast.success("Your project briefing is ready.");
           window.location.href = "/app/study-notes/view";
         } else {
-          throw new Error("We couldn't prepare the workspace briefing.");
+          throw new Error("We couldn't prepare the project briefing.");
         }
       } else {
         // For AI checkpoints, use the existing redirect logic
@@ -264,7 +264,7 @@ export default function CreateForm({
           toast.success("Your AI checkpoints are ready.");
           window.location.href = location;
         } else {
-          toast.success("Your workspace is ready.");
+          toast.success("Your project is ready.");
           window.location.reload();
         }
       }
@@ -272,7 +272,7 @@ export default function CreateForm({
       if (err?.name === "AbortError") {
         toast.error("This is taking longer than expected. Please retry, or use a smaller file or direct audio upload.");
       } else {
-        toast.error(err?.message || "We couldn't prepare your workspace material right now.");
+        toast.error(err?.message || "We couldn't prepare your project material right now.");
       }
     } finally {
       setPending(false);
@@ -282,7 +282,7 @@ export default function CreateForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {isMinimalCapture ? (
-        <input type="hidden" name="title" value={buildCaptureTitle(captureContent, uploadName)} />
+        <input type="hidden" name="title" value={buildProjectTitle(captureContent, uploadName)} />
       ) : null}
 
       {/* Generation mode selector */}
@@ -309,7 +309,7 @@ export default function CreateForm({
                   : "bg-white text-gray-700 border-gray-300 hover:border-gray-400"
               }`}
             >
-              Workspace Briefing
+              Project Briefing
             </button>
           </div>
         </div>
@@ -320,7 +320,7 @@ export default function CreateForm({
         <label className="text-sm font-medium">Title <span className="text-red-500">*</span></label>
         <input 
           name="title" 
-          placeholder="Mate-E workspace redesign" 
+          placeholder="Android launch push" 
           className="w-full border rounded p-2" 
           required 
           minLength={3}
@@ -543,13 +543,13 @@ export default function CreateForm({
             ? "Save capture"
             : generationMode === "flashcards" 
             ? "Build AI checkpoints" 
-            : "Build workspace briefing"}
+            : "Build project briefing"}
       </button>
     </form>
   );
 }
 
-function buildCaptureTitle(content: string, uploadName: string) {
+function buildProjectTitle(content: string, uploadName: string) {
   const firstLine = content
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -560,10 +560,10 @@ function buildCaptureTitle(content: string, uploadName: string) {
   }
 
   if (uploadName.trim()) {
-    return `Capture: ${uploadName.trim()}`.slice(0, 120);
+    return `Project: ${uploadName.trim()}`.slice(0, 120);
   }
 
-  return "Workspace capture";
+  return "New project";
 }
 
 function looksLikeUrlInput(value: string) {
