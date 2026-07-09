@@ -10,9 +10,11 @@ type UploadKind = "pdf" | "subtitle" | "video";
 export default function CreateForm({
   defaultGenerationMode = "flashcards",
   lockedGenerationMode,
+  currentProjectName,
 }: {
   defaultGenerationMode?: "flashcards" | "notes";
   lockedGenerationMode?: "flashcards" | "notes";
+  currentProjectName?: string;
 }) {
   const API_BODY_LIMIT = 4 * 1024 * 1024; // ~4MB body limit for serverless; larger videos will be uploaded to Blob
   const [pending, setPending] = useState(false);
@@ -282,7 +284,7 @@ export default function CreateForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {isMinimalCapture ? (
-        <input type="hidden" name="title" value={buildProjectTitle(captureContent, uploadName)} />
+        <input type="hidden" name="title" value={buildProjectTitle(captureContent, uploadName, currentProjectName)} />
       ) : null}
 
       {/* Generation mode selector */}
@@ -549,7 +551,7 @@ export default function CreateForm({
   );
 }
 
-function buildProjectTitle(content: string, uploadName: string) {
+function buildProjectTitle(content: string, uploadName: string, currentProjectName?: string) {
   const firstLine = content
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -561,6 +563,10 @@ function buildProjectTitle(content: string, uploadName: string) {
 
   if (uploadName.trim()) {
     return `Project: ${uploadName.trim()}`.slice(0, 120);
+  }
+
+  if (currentProjectName?.trim()) {
+    return currentProjectName.trim().slice(0, 120);
   }
 
   return "New project";

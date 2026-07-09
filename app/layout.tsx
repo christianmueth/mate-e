@@ -11,7 +11,7 @@ const iconVersion = "20260516";
 
 export const metadata = {
   title: "Mate-E",
-  description: "Replay-governed workspace guidance with continuity memory, interpretable recommendations, and productivity-focused planning.",
+  description: "Mate-E helps you capture what matters, plan the best path forward, and execute meaningful work with less friction.",
   applicationName: "Mate-E",
   manifest: "/manifest.webmanifest",
   appleWebApp: {

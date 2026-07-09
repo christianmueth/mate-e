@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import WorkspaceSectionNav from "@/components/WorkspaceSectionNav";
+import { deriveProjectName } from "@/lib/currentProject";
 import { prisma } from "@/lib/db";
 import { summarizeReasoningRuns } from "@/lib/reasoningEngine/analytics";
 import { getLatestPersistedWorkspaceContext } from "@/lib/workspaceContextPersistence";
@@ -159,7 +160,7 @@ export default async function WorkspacePage() {
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-8 p-6">
-      <WorkspaceSectionNav currentPath="/app/workspace" />
+      <WorkspaceSectionNav currentPath="/app/workspace" projectName={memoryCard.workspaceName} />
 
       <section className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950 p-7 text-white shadow-[0_24px_90px_rgba(15,23,42,0.28)]">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">Do</p>
@@ -234,7 +235,7 @@ function buildWorkspaceMemoryCard(
   continuityLabel: string,
   nextSuggestedStep: string
 ): WorkspaceMemoryCard {
-  const workspaceName = deriveWorkspaceName(context);
+  const workspaceName = deriveProjectName(context);
 
   return {
     workspaceName,
@@ -330,9 +331,9 @@ function buildOperationsFeed(
     items.push({
       title: context?.presentationReference?.title
         ? `Continue ${truncateText(context.presentationReference.title, 36)}`
-        : deriveWorkspaceName(context) === "Empty project"
+        : deriveProjectName(context) === "New project"
           ? "Capture your first note"
-          : `Continue ${truncateText(deriveWorkspaceName(context), 36)}`,
+          : `Continue ${truncateText(deriveProjectName(context), 36)}`,
       body: latest.role === "assistant"
         ? truncateText(latest.content, 140)
         : `Last session ended with ${truncateText(latest.content, 120)}`,
@@ -448,24 +449,6 @@ function buildPriorityReason(
     return `${runs[0].title} was the latest active work. The next step should stay close to that project instead of starting something new.`;
   }
   return `${nextStepLabel} is the clearest move because this still needs one active project before Mate-E can prioritize more aggressively.`;
-}
-
-function deriveWorkspaceName(context: WorkspaceContext | null) {
-  const preferred = context?.presentationReference?.title
-    || context?.whiteboardReference?.workspaceGoal
-    || context?.whiteboardReference?.boardName
-    || context?.weakConcepts?.[0]
-    || null;
-
-  if (!preferred) return "Empty project";
-
-  const trimmed = preferred.trim();
-  if (!trimmed) return "Empty project";
-  if (/^untitled$/i.test(trimmed) || /^untitled workspace$/i.test(trimmed) || /^untitled project$/i.test(trimmed) || /^board$/i.test(trimmed)) {
-    return "Empty project";
-  }
-
-  return trimmed;
 }
 
 function deriveWorkspaceProgress(context: WorkspaceContext | null) {

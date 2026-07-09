@@ -2,13 +2,16 @@ import Link from "next/link";
 import CreateForm from "@/components/CreateForm";
 import WorkspaceSectionNav from "@/components/WorkspaceSectionNav";
 import WorkspaceWhiteboard from "@/components/WorkspaceWhiteboard";
+import { getCurrentProjectFrame } from "@/lib/currentProject";
 
 export const dynamic = "force-dynamic";
 
-export default function WorkspaceWhiteboardPage() {
+export default async function WorkspaceWhiteboardPage() {
+  const { projectName } = await getCurrentProjectFrame();
+
   return (
     <div className="mx-auto flex max-w-[1400px] flex-col gap-5 p-4 md:p-6">
-      <WorkspaceSectionNav currentPath="/app/workspace/whiteboard" />
+      <WorkspaceSectionNav currentPath="/app/workspace/whiteboard" projectName={projectName} />
 
       <section className="rounded-[2rem] border border-emerald-200 bg-white px-6 py-5 shadow-sm">
         <div className="flex items-start justify-between gap-4">
@@ -26,7 +29,7 @@ export default function WorkspaceWhiteboardPage() {
       </section>
 
       <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-        <CreateForm defaultGenerationMode="notes" lockedGenerationMode="notes" />
+        <CreateForm defaultGenerationMode="notes" lockedGenerationMode="notes" currentProjectName={projectName} />
       </section>
 
       <WorkspaceWhiteboard />

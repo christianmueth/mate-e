@@ -1,3 +1,4 @@
+import { getCurrentProjectFrame } from "@/lib/currentProject";
 import WorkspaceSectionNav from "@/components/WorkspaceSectionNav";
 import WorkspaceOperationsConsole from "@/components/WorkspaceOperationsConsole";
 
@@ -17,6 +18,7 @@ export default async function WorkspaceOperationsPage({
   }>;
 }) {
   const resolvedSearchParams = await searchParams;
+  const { projectName } = await getCurrentProjectFrame();
   const initialBuilder = normalizeBuilderId(resolvedSearchParams.operationsBuilder);
   const initialState = {
     objective: normalizeSearchValue(resolvedSearchParams.objective, 220),
@@ -29,7 +31,7 @@ export default async function WorkspaceOperationsPage({
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-8 p-6">
-      <WorkspaceSectionNav currentPath="/app/workspace/operations" />
+      <WorkspaceSectionNav currentPath="/app/workspace/operations" projectName={projectName} />
 
       <section className="rounded-[2rem] border border-cyan-200 bg-white p-7 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-800">Plan</p>

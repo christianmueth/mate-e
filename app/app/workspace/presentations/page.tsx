@@ -1,13 +1,16 @@
 import Link from "next/link";
 import WorkspaceSectionNav from "@/components/WorkspaceSectionNav";
 import WorkspacePresentationPlanner from "@/components/WorkspacePresentationPlanner";
+import { getCurrentProjectFrame } from "@/lib/currentProject";
 
 export const dynamic = "force-dynamic";
 
-export default function WorkspacePresentationsPage() {
+export default async function WorkspacePresentationsPage() {
+  const { projectName } = await getCurrentProjectFrame();
+
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-8 p-6">
-      <WorkspaceSectionNav currentPath="/app/workspace/presentations" />
+      <WorkspaceSectionNav currentPath="/app/workspace/presentations" projectName={projectName} />
 
       <section className="rounded-[2rem] border border-violet-200 bg-gradient-to-br from-violet-50 via-white to-fuchsia-50 p-7 shadow-sm">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-700">Organize</p>

@@ -13,7 +13,7 @@ export default function HomeClerkAuthControls({ nextTarget }: { nextTarget: stri
           signInForceRedirectUrl={nextTarget}
         >
           <button className="rounded-full bg-teal-600 px-6 py-3 text-sm font-medium text-white hover:bg-teal-700">
-            Start focused work
+            Start with Mate-E
           </button>
         </SignUpButton>
         <SignInButton
@@ -32,7 +32,7 @@ export default function HomeClerkAuthControls({ nextTarget }: { nextTarget: stri
           href="/app/workspace"
           className="rounded-full bg-teal-600 px-6 py-3 text-sm font-medium text-white hover:bg-teal-700"
         >
-          Open productivity workspace
+          Open current project
         </Link>
       </SignedIn>
     </>
