@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
+import { hasPremiumAccess } from "@/lib/billing";
 import { prisma } from "@/lib/db";
 
 export async function GET() {
   try {
     const { userId } = await auth();
     if (!userId) {
-      return NextResponse.json({ ok: true, signedIn: false, xp: 0, streak: 0, xpToday: 0, dailyGoal: 50 });
+      return NextResponse.json({ ok: true, signedIn: false, xp: 0, streak: 0, xpToday: 0, dailyGoal: 50, plan: "free", premiumActive: false, billingStatus: null });
     }
 
     // Don't "select" fields you haven't migrated yet.
@@ -22,6 +23,9 @@ export async function GET() {
       if (Number(d) === Number(today)) xpToday = user?.xpToday ?? 0;
     }
 
+    const stripeCurrentPeriodEnd = user?.stripeCurrentPeriodEnd ? new Date(user.stripeCurrentPeriodEnd) : null;
+    const premiumActive = user?.plan === "premium" || hasPremiumAccess(user?.stripeSubscriptionStatus, stripeCurrentPeriodEnd);
+
     return NextResponse.json({
       ok: true,
       signedIn: true,
@@ -29,9 +33,12 @@ export async function GET() {
       streak: user?.studyStreak ?? 0,
       xpToday,
       dailyGoal: goal,
+      plan: user?.plan ?? "free",
+      premiumActive,
+      billingStatus: user?.stripeSubscriptionStatus ?? null,
     });
   } catch {
     // Always return JSON
-    return NextResponse.json({ ok: false, signedIn: false, xp: 0, streak: 0, xpToday: 0, dailyGoal: 50 });
+    return NextResponse.json({ ok: false, signedIn: false, xp: 0, streak: 0, xpToday: 0, dailyGoal: 50, plan: "free", premiumActive: false, billingStatus: null });
   }
 }

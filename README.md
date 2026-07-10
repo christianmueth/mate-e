@@ -57,6 +57,38 @@ Deployable product features now include:
 
 Full MCTS or autonomous planner authority is intentionally not yet authoritative in the live product.
 
+## Stripe Billing
+
+Mate-E now includes a Premium-only Stripe billing flow with:
+
+- Checkout route: `/api/billing/checkout`
+- Billing portal route: `/api/billing/portal`
+- Webhook route: `/api/webhooks/stripe`
+- Account page: `/app/billing`
+
+Required production environment variables:
+
+- `STRIPE_SECRET_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_PREMIUM_PRICE_ID`
+- `NEXT_PUBLIC_APP_URL`
+
+After pulling the billing changes, run:
+
+```bash
+npx prisma migrate deploy
+npx prisma generate
+```
+
+Configure the Stripe webhook endpoint to send these events to `/api/webhooks/stripe`:
+
+- `checkout.session.completed`
+- `customer.subscription.created`
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+- `invoice.payment_succeeded`
+- `invoice.payment_failed`
+
 ## Getting Started
 
 First, run the development server:

@@ -16,6 +16,12 @@ model User {
   xp            Int            @default(0)
   xpToday       Int            @default(0)
   xpTodayDate   DateTime?
+  plan          String         @default("free")
+  stripeCustomerId String?     @unique
+  stripeSubscriptionId String? @unique
+  stripePriceId String?
+  stripeSubscriptionStatus String?
+  stripeCurrentPeriodEnd DateTime?
   decks         Deck[]
   reasoningRuns ReasoningRun[]
   studentState  StudentState?

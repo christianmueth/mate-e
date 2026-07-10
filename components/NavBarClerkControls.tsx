@@ -19,6 +19,12 @@ export default function NavBarClerkControls() {
       </Suspense>
 
       <SignedIn>
+        <Link href="/app/billing" className="text-sm px-3 py-1.5 rounded border border-teal-200 bg-white text-teal-900 hover:bg-teal-50">
+          Billing
+        </Link>
+      </SignedIn>
+
+      <SignedIn>
         <UserButton afterSignOutUrl="/" />
       </SignedIn>
     </>
