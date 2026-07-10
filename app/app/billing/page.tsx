@@ -11,12 +11,6 @@ type BillingPageSearchParams = Promise<{
   checkout?: string | string[];
 }>;
 
-type BillingDiagnostic = {
-  step: string;
-  ok: boolean;
-  detail: string;
-};
-
 export default async function BillingPage({
   searchParams,
 }: {
@@ -27,50 +21,10 @@ export default async function BillingPage({
     redirect(`/?next=${encodeURIComponent("/app/billing")}`);
   }
 
-  const diagnostics: BillingDiagnostic[] = [];
-  let checkoutState = "";
-  let billingState = {
-    userId: null as string | null,
-    plan: null as string | null,
-    stripeCustomerId: null as string | null,
-    stripeSubscriptionStatus: null as string | null,
-    stripeCurrentPeriodEnd: null as Date | null,
-    billingColumnsReady: false,
-    detail: "Billing state not loaded.",
-  };
-  let billingConfigured = false;
-
-  try {
-    const resolvedSearchParams = await searchParams;
-    checkoutState = pickSearchParam(resolvedSearchParams.checkout);
-    diagnostics.push({ step: "Search params", ok: true, detail: "Loaded billing query state." });
-  } catch (error) {
-    diagnostics.push({ step: "Search params", ok: false, detail: summarizeError(error) });
-  }
-
-  try {
-    billingState = await getUserBillingState(clerkUserId);
-    diagnostics.push({
-      step: "User billing state",
-      ok: billingState.billingColumnsReady,
-      detail: billingState.detail,
-    });
-  } catch (error) {
-    console.error("[BillingPage] user load failed:", error);
-    diagnostics.push({ step: "User billing state", ok: false, detail: summarizeError(error) });
-  }
-
-  try {
-    billingConfigured = isStripeBillingConfigured();
-    diagnostics.push({
-      step: "Stripe environment",
-      ok: true,
-      detail: billingConfigured ? "Billing env vars detected." : "One or more Stripe billing env vars are missing.",
-    });
-  } catch (error) {
-    console.error("[BillingPage] env check failed:", error);
-    diagnostics.push({ step: "Stripe environment", ok: false, detail: summarizeError(error) });
-  }
+  const resolvedSearchParams = await searchParams;
+  const checkoutState = pickSearchParam(resolvedSearchParams.checkout);
+  const billingState = await getUserBillingState(clerkUserId);
+  const billingConfigured = isStripeBillingConfigured();
 
   const isPremium = billingState.plan === "premium" || hasPremiumAccess(billingState.stripeSubscriptionStatus, billingState.stripeCurrentPeriodEnd);
   const banner = buildBanner(checkoutState, isPremium);
@@ -113,7 +67,7 @@ export default async function BillingPage({
             </p>
             {!billingReady ? (
               <p className="rounded-[1rem] border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
-                Billing storage is not fully available in this deployment yet. The page can load, but checkout and portal actions will stay disabled until the billing columns are readable in this deployment.
+                Billing storage is not fully available in this deployment yet. Checkout and subscription management will stay disabled until billing data becomes readable.
               </p>
             ) : null}
           </div>
@@ -136,28 +90,8 @@ export default async function BillingPage({
           </div>
         </aside>
       </section>
-
-      <section className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Diagnostics</p>
-        <div className="mt-4 space-y-3 text-sm text-slate-700">
-          {diagnostics.map((item) => (
-            <div key={item.step} className={item.ok ? "rounded-[1rem] border border-emerald-200 bg-emerald-50 px-4 py-3" : "rounded-[1rem] border border-amber-200 bg-amber-50 px-4 py-3"}>
-              <p className="font-medium text-slate-950">{item.step}: {item.ok ? "OK" : "Issue detected"}</p>
-              <p className="mt-1 text-slate-700">{item.detail}</p>
-            </div>
-          ))}
-        </div>
-      </section>
     </main>
   );
-}
-
-function summarizeError(error: unknown) {
-  if (error instanceof Error) {
-    return error.message || "Unknown server error.";
-  }
-
-  return "Unknown server error.";
 }
 
 function pickSearchParam(value: string | string[] | undefined) {
