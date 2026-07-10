@@ -31,6 +31,27 @@ export function isMissingUserTableError(error: unknown) {
   );
 }
 
+export function isMissingUserColumnError(error: unknown) {
+  const code = typeof (error as { code?: unknown } | null)?.code === "string"
+    ? String((error as { code?: string }).code)
+    : "";
+  const column = String((error as { meta?: { column?: unknown } } | null)?.meta?.column || "");
+  const message = String((error as { message?: unknown } | null)?.message || "");
+
+  return (
+    code === "P2022" &&
+    (
+      column.includes("User") ||
+      /column.+User/i.test(message) ||
+      /stripe(CustomerId|SubscriptionId|SubscriptionStatus|CurrentPeriodEnd)|\bplan\b/i.test(message)
+    )
+  );
+}
+
+export function isRecoverableUserPersistenceError(error: unknown) {
+  return isMissingUserTableError(error) || isMissingUserColumnError(error);
+}
+
 export async function safeUpsertUser<T extends Prisma.UserSelect>(clerkUserId: string, select: T) {
   try {
     return await prisma.user.upsert({
@@ -40,8 +61,8 @@ export async function safeUpsertUser<T extends Prisma.UserSelect>(clerkUserId: s
       select,
     });
   } catch (error) {
-    if (isMissingUserTableError(error)) {
-      console.warn("[db] User table unavailable; skipping user persistence");
+    if (isRecoverableUserPersistenceError(error)) {
+      console.warn("[db] User persistence unavailable; skipping user persistence");
       return null;
     }
     throw error;

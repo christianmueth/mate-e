@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import BillingActions from "@/components/BillingActions";
 import { hasPremiumAccess } from "@/lib/billing";
-import { prisma } from "@/lib/db";
+import { safeUpsertUser } from "@/lib/db";
 import { isStripeBillingConfigured } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
@@ -24,21 +24,17 @@ export default async function BillingPage({
   const resolvedSearchParams = await searchParams;
   const checkoutState = pickSearchParam(resolvedSearchParams.checkout);
 
-  const user = await prisma.user.upsert({
-    where: { clerkUserId },
-    update: {},
-    create: { clerkUserId },
-    select: {
-      plan: true,
-      stripeCustomerId: true,
-      stripeSubscriptionStatus: true,
-      stripeCurrentPeriodEnd: true,
-    },
+  const user = await safeUpsertUser(clerkUserId, {
+    plan: true,
+    stripeCustomerId: true,
+    stripeSubscriptionStatus: true,
+    stripeCurrentPeriodEnd: true,
   });
 
-  const isPremium = user.plan === "premium" || hasPremiumAccess(user.stripeSubscriptionStatus, user.stripeCurrentPeriodEnd);
+  const isPremium = user?.plan === "premium" || hasPremiumAccess(user?.stripeSubscriptionStatus, user?.stripeCurrentPeriodEnd);
   const billingConfigured = isStripeBillingConfigured();
   const banner = buildBanner(checkoutState, isPremium);
+  const billingReady = Boolean(user);
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-10">
@@ -67,21 +63,26 @@ export default async function BillingPage({
           </h2>
           <div className="mt-5 space-y-3 text-sm text-slate-700">
             <p>
-              Stripe status: <span className="font-medium text-slate-950">{user.stripeSubscriptionStatus || "Not subscribed"}</span>
+              Stripe status: <span className="font-medium text-slate-950">{user?.stripeSubscriptionStatus || (billingReady ? "Not subscribed" : "Database sync pending")}</span>
             </p>
             <p>
-              Access through: <span className="font-medium text-slate-950">{formatPeriodEnd(user.stripeCurrentPeriodEnd)}</span>
+              Access through: <span className="font-medium text-slate-950">{formatPeriodEnd(user?.stripeCurrentPeriodEnd ?? null)}</span>
             </p>
             <p>
-              Customer record: <span className="font-medium text-slate-950">{user.stripeCustomerId ? "Linked" : "Not linked yet"}</span>
+              Customer record: <span className="font-medium text-slate-950">{user?.stripeCustomerId ? "Linked" : (billingReady ? "Not linked yet" : "Unavailable")}</span>
             </p>
+            {!billingReady ? (
+              <p className="rounded-[1rem] border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+                Billing storage is not fully available in this deployment yet. The page can load, but checkout and portal actions will stay disabled until the database schema is in sync.
+              </p>
+            ) : null}
           </div>
 
           <div className="mt-6">
             <BillingActions
-              configured={billingConfigured}
+              configured={billingConfigured && billingReady}
               isPremium={isPremium}
-              hasCustomer={Boolean(user.stripeCustomerId)}
+              hasCustomer={Boolean(user?.stripeCustomerId)}
             />
           </div>
         </article>

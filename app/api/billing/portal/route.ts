@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { prisma } from "@/lib/db";
+import { safeUpsertUser } from "@/lib/db";
 import { getAppUrl, getStripe } from "@/lib/stripe";
 
 export const runtime = "nodejs";
@@ -17,12 +17,13 @@ export async function POST() {
       return NextResponse.json({ ok: false, error: "Stripe is not configured." }, { status: 503 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { clerkUserId },
-      select: {
-        stripeCustomerId: true,
-      },
+    const user = await safeUpsertUser(clerkUserId, {
+      stripeCustomerId: true,
     });
+
+    if (!user) {
+      return NextResponse.json({ ok: false, error: "Billing is unavailable until the database is ready." }, { status: 503 });
+    }
 
     if (!user?.stripeCustomerId) {
       return NextResponse.json({ ok: false, error: "No Stripe customer is linked to this account yet." }, { status: 400 });
