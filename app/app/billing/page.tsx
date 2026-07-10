@@ -49,7 +49,7 @@ export default async function BillingPage({
         </section>
       ) : null}
 
-      <section className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
+      <section>
         <article className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Current plan</p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
@@ -80,15 +80,6 @@ export default async function BillingPage({
             />
           </div>
         </article>
-
-        <aside className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Production config</p>
-          <div className="mt-4 space-y-3 text-sm leading-6 text-slate-700">
-            <p>{billingConfigured ? "Stripe billing environment variables are present." : "Stripe billing is not fully configured in this environment yet."}</p>
-            <p>Expected variables: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, STRIPE_PREMIUM_PRICE_ID, NEXT_PUBLIC_APP_URL.</p>
-            <p>Webhook endpoint: https://mate-e.com/api/webhooks/stripe</p>
-          </div>
-        </aside>
       </section>
     </main>
   );
