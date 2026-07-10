@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
-import { prisma, safeUpsertUser } from "@/lib/db";
+import { prisma, getUserBillingState } from "@/lib/db";
 import { getAppUrl, getStripe, getStripePremiumPriceId, isStripeCheckoutConfigured } from "@/lib/stripe";
 
 export const runtime = "nodejs";
@@ -17,29 +17,30 @@ export async function POST() {
       return NextResponse.json({ ok: false, error: "Stripe checkout is not configured." }, { status: 503 });
     }
 
-    const user = await safeUpsertUser(clerkUserId, {
-      id: true,
-      stripeCustomerId: true,
-    });
+    const billingState = await getUserBillingState(clerkUserId);
 
-    if (!user) {
+    if (!billingState.userId) {
       return NextResponse.json({ ok: false, error: "Billing is unavailable until the database is ready." }, { status: 503 });
     }
 
+    if (!billingState.billingColumnsReady) {
+      return NextResponse.json({ ok: false, error: billingState.detail || "Billing is unavailable until the database is ready." }, { status: 503 });
+    }
+
     const stripe = getStripe();
-    let stripeCustomerId = user.stripeCustomerId;
+    let stripeCustomerId = billingState.stripeCustomerId;
 
     if (!stripeCustomerId) {
       const customer = await stripe.customers.create({
         metadata: {
           clerkUserId,
-          userId: user.id,
+          userId: billingState.userId,
         },
       });
 
       stripeCustomerId = customer.id;
       await prisma.user.update({
-        where: { id: user.id },
+        where: { id: billingState.userId },
         data: { stripeCustomerId },
       });
     }
@@ -47,7 +48,7 @@ export async function POST() {
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: stripeCustomerId,
-      client_reference_id: user.id,
+      client_reference_id: billingState.userId,
       allow_promotion_codes: true,
       line_items: [
         {
@@ -57,13 +58,13 @@ export async function POST() {
       ],
       metadata: {
         clerkUserId,
-        userId: user.id,
+        userId: billingState.userId,
         plan: "premium",
       },
       subscription_data: {
         metadata: {
           clerkUserId,
-          userId: user.id,
+          userId: billingState.userId,
           plan: "premium",
         },
       },

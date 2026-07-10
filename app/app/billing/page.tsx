@@ -2,7 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import BillingActions from "@/components/BillingActions";
 import { hasPremiumAccess } from "@/lib/billing";
-import { safeUpsertUser } from "@/lib/db";
+import { getUserBillingState } from "@/lib/db";
 import { isStripeBillingConfigured } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
@@ -29,12 +29,15 @@ export default async function BillingPage({
 
   const diagnostics: BillingDiagnostic[] = [];
   let checkoutState = "";
-  let user: Awaited<ReturnType<typeof safeUpsertUser<{
-    plan: true;
-    stripeCustomerId: true;
-    stripeSubscriptionStatus: true;
-    stripeCurrentPeriodEnd: true;
-  }>>> | null = null;
+  let billingState = {
+    userId: null as string | null,
+    plan: null as string | null,
+    stripeCustomerId: null as string | null,
+    stripeSubscriptionStatus: null as string | null,
+    stripeCurrentPeriodEnd: null as Date | null,
+    billingColumnsReady: false,
+    detail: "Billing state not loaded.",
+  };
   let billingConfigured = false;
 
   try {
@@ -46,16 +49,11 @@ export default async function BillingPage({
   }
 
   try {
-    user = await safeUpsertUser(clerkUserId, {
-      plan: true,
-      stripeCustomerId: true,
-      stripeSubscriptionStatus: true,
-      stripeCurrentPeriodEnd: true,
-    });
+    billingState = await getUserBillingState(clerkUserId);
     diagnostics.push({
       step: "User billing state",
-      ok: true,
-      detail: user ? "Billing fields loaded from the user record." : "User persistence unavailable; billing actions disabled.",
+      ok: billingState.billingColumnsReady,
+      detail: billingState.detail,
     });
   } catch (error) {
     console.error("[BillingPage] user load failed:", error);
@@ -74,9 +72,9 @@ export default async function BillingPage({
     diagnostics.push({ step: "Stripe environment", ok: false, detail: summarizeError(error) });
   }
 
-  const isPremium = user?.plan === "premium" || hasPremiumAccess(user?.stripeSubscriptionStatus, user?.stripeCurrentPeriodEnd);
+  const isPremium = billingState.plan === "premium" || hasPremiumAccess(billingState.stripeSubscriptionStatus, billingState.stripeCurrentPeriodEnd);
   const banner = buildBanner(checkoutState, isPremium);
-  const billingReady = Boolean(user);
+  const billingReady = billingState.billingColumnsReady;
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-10">
@@ -105,17 +103,17 @@ export default async function BillingPage({
           </h2>
           <div className="mt-5 space-y-3 text-sm text-slate-700">
             <p>
-              Stripe status: <span className="font-medium text-slate-950">{user?.stripeSubscriptionStatus || (billingReady ? "Not subscribed" : "Database sync pending")}</span>
+              Stripe status: <span className="font-medium text-slate-950">{billingState.stripeSubscriptionStatus || (billingReady ? "Not subscribed" : "Database sync pending")}</span>
             </p>
             <p>
-              Access through: <span className="font-medium text-slate-950">{formatPeriodEnd(user?.stripeCurrentPeriodEnd ?? null)}</span>
+              Access through: <span className="font-medium text-slate-950">{formatPeriodEnd(billingState.stripeCurrentPeriodEnd)}</span>
             </p>
             <p>
-              Customer record: <span className="font-medium text-slate-950">{user?.stripeCustomerId ? "Linked" : (billingReady ? "Not linked yet" : "Unavailable")}</span>
+              Customer record: <span className="font-medium text-slate-950">{billingState.stripeCustomerId ? "Linked" : (billingReady ? "Not linked yet" : "Unavailable")}</span>
             </p>
             {!billingReady ? (
               <p className="rounded-[1rem] border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
-                Billing storage is not fully available in this deployment yet. The page can load, but checkout and portal actions will stay disabled until the database schema is in sync.
+                Billing storage is not fully available in this deployment yet. The page can load, but checkout and portal actions will stay disabled until the billing columns are readable in this deployment.
               </p>
             ) : null}
           </div>
@@ -124,7 +122,7 @@ export default async function BillingPage({
             <BillingActions
               configured={billingConfigured && billingReady}
               isPremium={isPremium}
-              hasCustomer={Boolean(user?.stripeCustomerId)}
+                hasCustomer={Boolean(billingState.stripeCustomerId)}
             />
           </div>
         </article>

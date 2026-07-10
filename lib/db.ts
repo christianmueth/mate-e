@@ -1,5 +1,17 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 
+type BillingColumnName = "plan" | "stripeCustomerId" | "stripeSubscriptionStatus" | "stripeCurrentPeriodEnd";
+
+type UserBillingState = {
+  userId: string | null;
+  plan: string | null;
+  stripeCustomerId: string | null;
+  stripeSubscriptionStatus: string | null;
+  stripeCurrentPeriodEnd: Date | null;
+  billingColumnsReady: boolean;
+  detail: string;
+};
+
 declare global {
   // eslint-disable-next-line no-var
   var prisma: PrismaClient | undefined;
@@ -66,5 +78,102 @@ export async function safeUpsertUser<T extends Prisma.UserSelect>(clerkUserId: s
       return null;
     }
     throw error;
+  }
+}
+
+const REQUIRED_BILLING_COLUMNS: BillingColumnName[] = [
+  "plan",
+  "stripeCustomerId",
+  "stripeSubscriptionStatus",
+  "stripeCurrentPeriodEnd",
+];
+
+export async function getUserBillingState(clerkUserId: string): Promise<UserBillingState> {
+  const user = await safeUpsertUser(clerkUserId, { id: true });
+
+  if (!user) {
+    return {
+      userId: null,
+      plan: null,
+      stripeCustomerId: null,
+      stripeSubscriptionStatus: null,
+      stripeCurrentPeriodEnd: null,
+      billingColumnsReady: false,
+      detail: "Base user record is unavailable.",
+    };
+  }
+
+  try {
+    const existingColumns = await prisma.$queryRaw<Array<{ column_name: BillingColumnName }>>`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'User'
+        AND column_name IN ('plan', 'stripeCustomerId', 'stripeSubscriptionStatus', 'stripeCurrentPeriodEnd')
+    `;
+
+    const columnSet = new Set(existingColumns.map((row) => row.column_name));
+    const missingColumns = REQUIRED_BILLING_COLUMNS.filter((column) => !columnSet.has(column));
+
+    if (missingColumns.length > 0) {
+      return {
+        userId: user.id,
+        plan: null,
+        stripeCustomerId: null,
+        stripeSubscriptionStatus: null,
+        stripeCurrentPeriodEnd: null,
+        billingColumnsReady: false,
+        detail: `Missing billing columns: ${missingColumns.join(", ")}`,
+      };
+    }
+
+    const rows = await prisma.$queryRaw<Array<{
+      plan: unknown;
+      stripeCustomerId: unknown;
+      stripeSubscriptionStatus: unknown;
+      stripeCurrentPeriodEnd: unknown;
+    }>>`
+      SELECT "plan", "stripeCustomerId", "stripeSubscriptionStatus", "stripeCurrentPeriodEnd"
+      FROM "public"."User"
+      WHERE "clerkUserId" = ${clerkUserId}
+      LIMIT 1
+    `;
+
+    const row = rows[0];
+    if (!row) {
+      return {
+        userId: user.id,
+        plan: "free",
+        stripeCustomerId: null,
+        stripeSubscriptionStatus: null,
+        stripeCurrentPeriodEnd: null,
+        billingColumnsReady: true,
+        detail: "Billing row not found after user upsert.",
+      };
+    }
+
+    return {
+      userId: user.id,
+      plan: row.plan == null ? "free" : String(row.plan).toLowerCase(),
+      stripeCustomerId: row.stripeCustomerId == null ? null : String(row.stripeCustomerId),
+      stripeSubscriptionStatus: row.stripeSubscriptionStatus == null ? null : String(row.stripeSubscriptionStatus),
+      stripeCurrentPeriodEnd: row.stripeCurrentPeriodEnd instanceof Date
+        ? row.stripeCurrentPeriodEnd
+        : row.stripeCurrentPeriodEnd
+          ? new Date(String(row.stripeCurrentPeriodEnd))
+          : null,
+      billingColumnsReady: true,
+      detail: "Billing state loaded.",
+    };
+  } catch (error) {
+    return {
+      userId: user.id,
+      plan: null,
+      stripeCustomerId: null,
+      stripeSubscriptionStatus: null,
+      stripeCurrentPeriodEnd: null,
+      billingColumnsReady: false,
+      detail: error instanceof Error ? error.message : "Failed to load billing state.",
+    };
   }
 }
