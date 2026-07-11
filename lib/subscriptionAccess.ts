@@ -4,6 +4,7 @@ import { getUserBillingState, prisma } from "@/lib/db";
 export const FREE_TUTOR_CHAT_DAILY_LIMIT = 5;
 export const FREE_PRESENTATION_PLAN_DAILY_LIMIT = 2;
 export const FREE_WHITEBOARD_ASSIST_DAILY_LIMIT = 3;
+export const FREE_SCHEDULE_ASSIST_DAILY_LIMIT = 3;
 
 export type UsageEntitlement = {
   plan: "free" | "premium";
@@ -44,6 +45,14 @@ export async function getWhiteboardAssistEntitlement(clerkUserId: string): Promi
     mode: "whiteboard_assist",
     freeDailyLimit: FREE_WHITEBOARD_ASSIST_DAILY_LIMIT,
     featureLabel: "whiteboard assists",
+  });
+}
+
+export async function getScheduleAssistEntitlement(clerkUserId: string): Promise<UsageEntitlement> {
+  return getUsageEntitlement(clerkUserId, {
+    mode: "schedule_assist",
+    freeDailyLimit: FREE_SCHEDULE_ASSIST_DAILY_LIMIT,
+    featureLabel: "AI schedule assists",
   });
 }
 

@@ -1,7 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { readWorkspaceContext, updateWorkspaceContext, type WorkspacePlanScheduleItem } from "@/lib/workspaceContext";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import {
+  readWorkspaceContext,
+  updateWorkspaceContext,
+  type WorkspacePlanScheduleItem,
+} from "@/lib/workspaceContext";
+import type { UsageEntitlement } from "@/lib/subscriptionAccess";
 
 type ExecutionPhase = {
   title: string;
@@ -26,8 +32,40 @@ type ExecutionArtifact = {
 };
 
 type ScheduleItem = WorkspacePlanScheduleItem;
+type ScheduleAssistIntent = "optimize" | "conflicts" | "compress";
+
+type ScheduleAssistResponse = {
+  ok: boolean;
+  suggestion?: {
+    summary: string;
+    insights: string[];
+    items: ScheduleItem[];
+  };
+  entitlement?: UsageEntitlement | null;
+  error?: string;
+};
+
+type TimelineDragState =
+  | {
+      kind: "move";
+      itemId: string;
+      startY: number;
+      originStartMinutes: number;
+      durationMinutes: number;
+    }
+  | {
+      kind: "resize";
+      itemId: string;
+      startY: number;
+      originEndMinutes: number;
+      startMinutes: number;
+    };
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const TIMELINE_START_HOUR = 7;
+const TIMELINE_END_HOUR = 21;
+const TIMELINE_HOUR_HEIGHT = 64;
+const SNAP_MINUTES = 30;
 
 export default function WorkspacePlanCalendar({ artifact }: { artifact: ExecutionArtifact }) {
   const scheduleKey = slugify(artifact.title || "workspace-schedule");
@@ -40,16 +78,23 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
   const [items, setItems] = useState<ScheduleItem[]>(() => getSeededScheduleItems(artifact));
   const [selectedId, setSelectedId] = useState<string | null>(() => getSeededScheduleItems(artifact)[0]?.id ?? null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [assistLoading, setAssistLoading] = useState<ScheduleAssistIntent | null>(null);
+  const [assistSummary, setAssistSummary] = useState(artifact.summary);
+  const [assistInsights, setAssistInsights] = useState<string[]>(artifact.criticalPath.slice(0, 3));
+  const [entitlement, setEntitlement] = useState<UsageEntitlement | null>(null);
   const [visibleMonth, setVisibleMonth] = useState<Date>(() => {
     const seeded = getSeededScheduleItems(artifact)[0];
     return startOfMonth(parseDateInput(seeded?.date) || new Date());
   });
+  const timelineDragRef = useRef<TimelineDragState | null>(null);
 
   useEffect(() => {
     const nextItems = getSeededScheduleItems(artifact);
     setItems(nextItems);
     setSelectedId(nextItems[0]?.id ?? null);
     setVisibleMonth(startOfMonth(parseDateInput(nextItems[0]?.date) || new Date()));
+    setAssistSummary(artifact.summary);
+    setAssistInsights(artifact.criticalPath.slice(0, 3));
   }, [seedKey, artifact]);
 
   useEffect(() => {
@@ -63,20 +108,86 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
     }));
   }, [items, scheduleKey]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadEntitlement() {
+      try {
+        const response = await fetch("/api/workspace/schedule-assist", { method: "GET", cache: "no-store" });
+        const data = (await safeJson(response)) as ScheduleAssistResponse | null;
+        if (!cancelled && response.ok && data?.entitlement) {
+          setEntitlement(data.entitlement);
+        }
+      } catch {
+        return;
+      }
+    }
+
+    void loadEntitlement();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    function handlePointerMove(event: MouseEvent) {
+      const current = timelineDragRef.current;
+      if (!current) return;
+      const deltaMinutes = Math.round(((event.clientY - current.startY) / (TIMELINE_HOUR_HEIGHT / 60)) / SNAP_MINUTES) * SNAP_MINUTES;
+
+      if (current.kind === "move") {
+        const nextStart = clampMinutes(current.originStartMinutes + deltaMinutes, TIMELINE_START_HOUR * 60, TIMELINE_END_HOUR * 60 - current.durationMinutes);
+        const nextEnd = nextStart + current.durationMinutes;
+        updateItemById(current.itemId, {
+          start: toTimeString(nextStart),
+          end: toTimeString(nextEnd),
+        });
+        return;
+      }
+
+      const nextEnd = clampMinutes(current.originEndMinutes + deltaMinutes, current.startMinutes + SNAP_MINUTES, TIMELINE_END_HOUR * 60);
+      updateItemById(current.itemId, {
+        end: toTimeString(nextEnd),
+      });
+    }
+
+    function handlePointerUp() {
+      timelineDragRef.current = null;
+    }
+
+    window.addEventListener("mousemove", handlePointerMove);
+    window.addEventListener("mouseup", handlePointerUp);
+    return () => {
+      window.removeEventListener("mousemove", handlePointerMove);
+      window.removeEventListener("mouseup", handlePointerUp);
+    };
+  }, []);
+
   const sortedItems = useMemo(
     () => [...items].sort((left, right) => `${left.date}-${left.start}`.localeCompare(`${right.date}-${right.start}`)),
     [items]
   );
   const selectedItem = sortedItems.find((item) => item.id === selectedId) || sortedItems[0] || null;
+  const selectedDate = selectedItem?.date || sortedItems[0]?.date || toDateInputValue(new Date());
+  const dayItems = sortedItems.filter((item) => item.date === selectedDate);
   const monthCells = useMemo(() => buildMonthCells(visibleMonth), [visibleMonth]);
+  const timelineHours = useMemo(
+    () => Array.from({ length: TIMELINE_END_HOUR - TIMELINE_START_HOUR + 1 }, (_, index) => TIMELINE_START_HOUR + index),
+    []
+  );
+
+  function updateItemById(itemId: string, patch: Partial<ScheduleItem>) {
+    setItems((current) => current.map((item) => (item.id === itemId ? { ...item, ...patch } : item)));
+  }
 
   function updateSelectedItem(patch: Partial<ScheduleItem>) {
     if (!selectedItem) return;
-    setItems((current) => current.map((item) => (item.id === selectedItem.id ? { ...item, ...patch } : item)));
+    updateItemById(selectedItem.id, patch);
   }
 
   function addEvent() {
-    const anchorDate = selectedItem?.date || toDateInputValue(new Date());
+    const anchorDate = selectedDate || toDateInputValue(new Date());
     const nextItem: ScheduleItem = {
       id: `custom-${Date.now()}`,
       title: "New schedule block",
@@ -97,7 +208,7 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
   }
 
   function moveItemToDate(itemId: string, nextDate: string) {
-    setItems((current) => current.map((item) => (item.id === itemId ? { ...item, date: nextDate } : item)));
+    updateItemById(itemId, { date: nextDate });
     setSelectedId(itemId);
     const parsed = parseDateInput(nextDate);
     if (parsed) {
@@ -112,13 +223,44 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
     setSelectedId(nextItems[0]?.id ?? null);
   }
 
+  async function runAssist(intent: ScheduleAssistIntent) {
+    setAssistLoading(intent);
+    try {
+      const response = await fetch("/api/workspace/schedule-assist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          intent,
+          objective: artifact.title,
+          summary: assistSummary,
+          items: sortedItems,
+          workspaceContext: readWorkspaceContext(),
+        }),
+      });
+      const data = (await safeJson(response)) as ScheduleAssistResponse | null;
+      if (!response.ok || !data?.ok || !data.suggestion) {
+        if (data?.entitlement) setEntitlement(data.entitlement);
+        throw new Error(data?.error || "AI schedule assist is unavailable right now.");
+      }
+      setItems(data.suggestion.items);
+      setSelectedId(data.suggestion.items[0]?.id ?? null);
+      setAssistSummary(data.suggestion.summary);
+      setAssistInsights(data.suggestion.insights);
+      setEntitlement(data.entitlement || null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "AI schedule assist is unavailable right now.");
+    } finally {
+      setAssistLoading(null);
+    }
+  }
+
   function downloadCalendar() {
     const ics = buildIcsFile(sortedItems, artifact);
     downloadTextFile(`${slugify(artifact.title || "workspace-schedule")}.ics`, ics, "text/calendar;charset=utf-8");
   }
 
   function downloadReport() {
-    const report = buildScheduleReport(sortedItems, artifact);
+    const report = buildScheduleReport(sortedItems, artifact, assistSummary, assistInsights);
     downloadTextFile(`${slugify(artifact.title || "workspace-schedule")}-report.md`, report, "text/markdown;charset=utf-8");
   }
 
@@ -129,7 +271,7 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800">AI-augmented schedule</p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{artifact.title}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">{artifact.summary}</p>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">{assistSummary}</p>
             <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
               <span className="rounded-full border border-cyan-200 bg-white/90 px-3 py-1">{artifact.metaLine}</span>
               <span className="rounded-full border border-slate-200 bg-white/90 px-3 py-1">{artifact.signal}</span>
@@ -138,32 +280,56 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={addEvent}
-              className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50"
-            >
+            <button type="button" onClick={addEvent} className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50">
               Add block
             </button>
-            <button
-              type="button"
-              onClick={downloadCalendar}
-              className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50"
-            >
+            <button type="button" onClick={downloadCalendar} className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50">
               Download calendar
             </button>
-            <button
-              type="button"
-              onClick={downloadReport}
-              className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-            >
+            <button type="button" onClick={downloadReport} className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
               Download report
             </button>
           </div>
         </div>
+
+        <div className="mt-5 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void runAssist("optimize")}
+            disabled={assistLoading !== null || Boolean(entitlement?.locked)}
+            className="rounded-full border border-cyan-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-cyan-50 disabled:opacity-60"
+          >
+            {assistLoading === "optimize" ? "Optimizing..." : "AI optimize week"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void runAssist("conflicts")}
+            disabled={assistLoading !== null || Boolean(entitlement?.locked)}
+            className="rounded-full border border-cyan-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-cyan-50 disabled:opacity-60"
+          >
+            {assistLoading === "conflicts" ? "Checking..." : "AI find conflicts"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void runAssist("compress")}
+            disabled={assistLoading !== null || Boolean(entitlement?.locked)}
+            className="rounded-full border border-cyan-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-cyan-50 disabled:opacity-60"
+          >
+            {assistLoading === "compress" ? "Compressing..." : "AI compress plan"}
+          </button>
+        </div>
+
+        {entitlement ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+            <span className={entitlement.locked ? "rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-amber-800" : "rounded-full border border-cyan-200 bg-white px-3 py-1 text-slate-700"}>
+              {entitlement.remaining === null ? "Unlimited AI assists" : `${entitlement.remaining} schedule assists left today`}
+            </span>
+            <p className={entitlement.locked ? "text-amber-800" : "text-slate-600"}>{entitlement.message}</p>
+          </div>
+        ) : null}
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+      <div className="grid gap-4 xl:grid-cols-[1.1fr_1fr_0.85fr]">
         <div className="space-y-4">
           <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between gap-3">
@@ -172,41 +338,26 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
                 <h3 className="mt-2 text-xl font-semibold text-slate-950">{formatMonthLabel(visibleMonth)}</h3>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setVisibleMonth(addMonths(visibleMonth, -1))}
-                  className="rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Prev
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setVisibleMonth(addMonths(visibleMonth, 1))}
-                  className="rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Next
-                </button>
+                <button type="button" onClick={() => setVisibleMonth(addMonths(visibleMonth, -1))} className="rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Prev</button>
+                <button type="button" onClick={() => setVisibleMonth(addMonths(visibleMonth, 1))} className="rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Next</button>
               </div>
             </div>
 
             <div className="mt-5 grid grid-cols-7 gap-2">
               {WEEKDAY_LABELS.map((label) => (
-                <div key={label} className="px-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                  {label}
-                </div>
+                <div key={label} className="px-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</div>
               ))}
               {monthCells.map((day) => {
-                const dayItems = sortedItems.filter((item) => item.date === day.isoDate);
+                const dayScheduleItems = sortedItems.filter((item) => item.date === day.isoDate);
                 const dayIsVisible = day.date.getMonth() === visibleMonth.getMonth();
+                const dayConflictCount = getConflictCount(dayScheduleItems);
                 return (
                   <button
                     key={day.isoDate}
                     type="button"
                     onClick={() => {
                       setVisibleMonth(startOfMonth(day.date));
-                      if (dayItems[0]) {
-                        setSelectedId(dayItems[0].id);
-                      }
+                      if (dayScheduleItems[0]) setSelectedId(dayScheduleItems[0].id);
                     }}
                     onDragOver={(event) => {
                       if (!draggingId) return;
@@ -219,27 +370,27 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
                       setDraggingId(null);
                     }}
                     className={dayIsVisible
-                      ? "min-h-[120px] rounded-[1.25rem] border border-slate-200 bg-white p-2 text-left hover:border-cyan-300 hover:bg-cyan-50/40"
+                      ? dayConflictCount > 0
+                        ? "min-h-[120px] rounded-[1.25rem] border border-rose-300 bg-rose-50/40 p-2 text-left hover:border-rose-400"
+                        : "min-h-[120px] rounded-[1.25rem] border border-slate-200 bg-white p-2 text-left hover:border-cyan-300 hover:bg-cyan-50/40"
                       : "min-h-[120px] rounded-[1.25rem] border border-slate-100 bg-slate-50/70 p-2 text-left text-slate-400"
                     }
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-semibold">{day.date.getDate()}</span>
-                      {dayItems.length ? <span className="text-[11px] text-slate-500">{dayItems.length}</span> : null}
+                      <div className="flex items-center gap-1">
+                        {dayConflictCount > 0 ? <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-rose-700">{dayConflictCount} conflict{dayConflictCount === 1 ? "" : "s"}</span> : null}
+                        {dayScheduleItems.length ? <span className="text-[11px] text-slate-500">{dayScheduleItems.length}</span> : null}
+                      </div>
                     </div>
                     <div className="mt-2 space-y-1">
-                      {dayItems.slice(0, 3).map((item) => (
+                      {dayScheduleItems.slice(0, 3).map((item) => (
                         <div
                           key={item.id}
                           draggable
                           onDragStart={() => setDraggingId(item.id)}
                           onDragEnd={() => setDraggingId(null)}
-                          className={item.status === "blocked"
-                            ? "truncate rounded-full bg-rose-100 px-2 py-1 text-[11px] font-medium text-rose-800 cursor-grab"
-                            : item.status === "watch"
-                              ? "truncate rounded-full bg-amber-100 px-2 py-1 text-[11px] font-medium text-amber-800 cursor-grab"
-                              : "truncate rounded-full bg-cyan-100 px-2 py-1 text-[11px] font-medium text-cyan-900 cursor-grab"
-                          }
+                          className={badgeClassName(item.status)}
                         >
                           {item.start} {item.title}
                         </div>
@@ -262,10 +413,7 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
                   draggable
                   onDragStart={() => setDraggingId(item.id)}
                   onDragEnd={() => setDraggingId(null)}
-                  className={selectedItem?.id === item.id
-                    ? "w-full rounded-[1.25rem] border border-cyan-300 bg-cyan-50 px-4 py-3 text-left"
-                    : "w-full rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-3 text-left hover:bg-white"
-                  }
+                  className={selectedItem?.id === item.id ? "w-full rounded-[1.25rem] border border-cyan-300 bg-cyan-50 px-4 py-3 text-left" : "w-full rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-3 text-left hover:bg-white"}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -283,15 +431,80 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
         <div className="space-y-4">
           <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Day timeline</p>
+                <p className="mt-2 text-sm font-medium text-slate-900">{formatAgendaDate(selectedDate)}</p>
+              </div>
+              <p className="text-xs text-slate-500">Drag blocks. Drag lower edge to resize.</p>
+            </div>
+
+            <div className="mt-4 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-3">
+              <div className="relative" style={{ height: `${(TIMELINE_END_HOUR - TIMELINE_START_HOUR) * TIMELINE_HOUR_HEIGHT}px` }}>
+                {timelineHours.map((hour, index) => (
+                  <div key={hour} className="absolute inset-x-0 border-t border-slate-200" style={{ top: `${index * TIMELINE_HOUR_HEIGHT}px` }}>
+                    <span className="-translate-y-1/2 inline-block bg-slate-50 pr-2 text-[11px] font-medium text-slate-500">{formatHourLabel(hour)}</span>
+                  </div>
+                ))}
+                {dayItems.map((item) => {
+                  const top = ((toMinutes(item.start) - TIMELINE_START_HOUR * 60) / 60) * TIMELINE_HOUR_HEIGHT;
+                  const height = Math.max(28, ((toMinutes(item.end) - toMinutes(item.start)) / 60) * TIMELINE_HOUR_HEIGHT);
+                  return (
+                    <div
+                      key={item.id}
+                      className={selectedItem?.id === item.id ? `${timelineClassName(item.status)} ring-2 ring-cyan-300` : timelineClassName(item.status)}
+                      style={{ top: `${top}px`, height: `${height}px` }}
+                      onMouseDown={(event) => {
+                        if ((event.target as HTMLElement).dataset.resizeHandle === "true") return;
+                        setSelectedId(item.id);
+                        timelineDragRef.current = {
+                          kind: "move",
+                          itemId: item.id,
+                          startY: event.clientY,
+                          originStartMinutes: toMinutes(item.start),
+                          durationMinutes: toMinutes(item.end) - toMinutes(item.start),
+                        };
+                      }}
+                    >
+                      <p className="truncate text-xs font-semibold text-slate-950">{item.title}</p>
+                      <p className="mt-1 text-[11px] text-slate-700">{item.start}-{item.end}</p>
+                      <div
+                        data-resize-handle="true"
+                        className="absolute inset-x-2 bottom-1 h-2 cursor-ns-resize rounded-full bg-white/80"
+                        onMouseDown={(event) => {
+                          event.stopPropagation();
+                          setSelectedId(item.id);
+                          timelineDragRef.current = {
+                            kind: "resize",
+                            itemId: item.id,
+                            startY: event.clientY,
+                            originEndMinutes: toMinutes(item.end),
+                            startMinutes: toMinutes(item.start),
+                          };
+                        }}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">AI guidance</p>
+            <div className="mt-4 space-y-3">
+              {assistInsights.map((item) => (
+                <div key={item} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">{item}</div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Edit block</p>
               {selectedItem ? (
-                <button
-                  type="button"
-                  onClick={removeSelectedItem}
-                  className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100"
-                >
-                  Delete
-                </button>
+                <button type="button" onClick={removeSelectedItem} className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100">Delete</button>
               ) : null}
             </div>
 
@@ -299,62 +512,32 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
               <div className="mt-4 space-y-4">
                 <label className="block text-sm font-medium text-slate-800">
                   Title
-                  <input
-                    value={selectedItem.title}
-                    onChange={(event) => updateSelectedItem({ title: event.target.value })}
-                    className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
-                  />
+                  <input value={selectedItem.title} onChange={(event) => updateSelectedItem({ title: event.target.value })} className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900" />
                 </label>
-
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="block text-sm font-medium text-slate-800">
                     Date
-                    <input
-                      type="date"
-                      value={selectedItem.date}
-                      onChange={(event) => updateSelectedItem({ date: event.target.value })}
-                      className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
-                    />
+                    <input type="date" value={selectedItem.date} onChange={(event) => updateSelectedItem({ date: event.target.value })} className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900" />
                   </label>
                   <label className="block text-sm font-medium text-slate-800">
                     Owner
-                    <input
-                      value={selectedItem.owner}
-                      onChange={(event) => updateSelectedItem({ owner: event.target.value })}
-                      className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
-                    />
+                    <input value={selectedItem.owner} onChange={(event) => updateSelectedItem({ owner: event.target.value })} className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900" />
                   </label>
                 </div>
-
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="block text-sm font-medium text-slate-800">
                     Start
-                    <input
-                      type="time"
-                      value={selectedItem.start}
-                      onChange={(event) => updateSelectedItem({ start: event.target.value })}
-                      className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
-                    />
+                    <input type="time" value={selectedItem.start} onChange={(event) => updateSelectedItem({ start: event.target.value })} className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900" />
                   </label>
                   <label className="block text-sm font-medium text-slate-800">
                     End
-                    <input
-                      type="time"
-                      value={selectedItem.end}
-                      onChange={(event) => updateSelectedItem({ end: event.target.value })}
-                      className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
-                    />
+                    <input type="time" value={selectedItem.end} onChange={(event) => updateSelectedItem({ end: event.target.value })} className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900" />
                   </label>
                 </div>
-
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="block text-sm font-medium text-slate-800">
                     Lane
-                    <select
-                      value={selectedItem.lane}
-                      onChange={(event) => updateSelectedItem({ lane: event.target.value as ScheduleItem["lane"] })}
-                      className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
-                    >
+                    <select value={selectedItem.lane} onChange={(event) => updateSelectedItem({ lane: event.target.value as ScheduleItem["lane"] })} className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900">
                       <option value="phase">Phase</option>
                       <option value="milestone">Milestone</option>
                       <option value="task">Task</option>
@@ -362,47 +545,35 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
                   </label>
                   <label className="block text-sm font-medium text-slate-800">
                     Status
-                    <select
-                      value={selectedItem.status}
-                      onChange={(event) => updateSelectedItem({ status: event.target.value as ScheduleItem["status"] })}
-                      className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
-                    >
+                    <select value={selectedItem.status} onChange={(event) => updateSelectedItem({ status: event.target.value as ScheduleItem["status"] })} className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900">
                       <option value="ready">Ready</option>
                       <option value="watch">Watch</option>
                       <option value="blocked">Blocked</option>
                     </select>
                   </label>
                 </div>
-
                 <label className="block text-sm font-medium text-slate-800">
                   Notes
-                  <textarea
-                    value={selectedItem.notes}
-                    onChange={(event) => updateSelectedItem({ notes: event.target.value })}
-                    className="mt-2 min-h-[120px] w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
-                  />
+                  <textarea value={selectedItem.notes} onChange={(event) => updateSelectedItem({ notes: event.target.value })} className="mt-2 min-h-[120px] w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900" />
                 </label>
               </div>
             ) : (
               <p className="mt-4 text-sm leading-6 text-slate-600">Create or select a block to edit the schedule.</p>
             )}
           </div>
-
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">AI notes</p>
-            <p className="mt-2 text-xs leading-5 text-slate-500">Drag blocks between days to reschedule them. All edits persist on this workspace.</p>
-            <div className="mt-4 space-y-3">
-              {artifact.criticalPath.slice(0, 3).map((item) => (
-                <div key={item} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">
-                  {item}
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     </div>
   );
+}
+
+async function safeJson(response: Response): Promise<any | null> {
+  try {
+    const text = await response.text();
+    return text ? JSON.parse(text) : null;
+  } catch {
+    return null;
+  }
 }
 
 function buildScheduleItems(artifact: ExecutionArtifact) {
@@ -471,22 +642,12 @@ function buildMonthCells(visibleMonth: Date) {
   const start = startOfWeek(startOfMonth(visibleMonth));
   return Array.from({ length: 42 }, (_, index) => {
     const date = addDays(start, index);
-    return {
-      date,
-      isoDate: toDateInputValue(date),
-    };
+    return { date, isoDate: toDateInputValue(date) };
   });
 }
 
 function buildIcsFile(items: ScheduleItem[], artifact: ExecutionArtifact) {
-  const lines = [
-    "BEGIN:VCALENDAR",
-    "VERSION:2.0",
-    "PRODID:-//Mate-E//Workspace Plan Calendar//EN",
-    "CALSCALE:GREGORIAN",
-    "METHOD:PUBLISH",
-  ];
-
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Mate-E//Workspace Plan Calendar//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH"];
   for (const item of items) {
     lines.push("BEGIN:VEVENT");
     lines.push(`UID:${item.id}@mate-e`);
@@ -498,25 +659,13 @@ function buildIcsFile(items: ScheduleItem[], artifact: ExecutionArtifact) {
     lines.push(`CATEGORIES:${item.lane.toUpperCase()}`);
     lines.push("END:VEVENT");
   }
-
   lines.push(`X-WR-CALNAME:${escapeIcs(artifact.title)}`);
   lines.push("END:VCALENDAR");
   return `${lines.join("\r\n")}\r\n`;
 }
 
-function buildScheduleReport(items: ScheduleItem[], artifact: ExecutionArtifact) {
-  const lines = [
-    `# ${artifact.title}`,
-    "",
-    artifact.summary,
-    "",
-    `Meta: ${artifact.metaLine}`,
-    `Signal: ${artifact.signal}`,
-    "",
-    "## Calendar Schedule",
-    "",
-  ];
-
+function buildScheduleReport(items: ScheduleItem[], artifact: ExecutionArtifact, summary: string, insights: string[]) {
+  const lines = [`# ${artifact.title}`, "", summary, "", `Meta: ${artifact.metaLine}`, `Signal: ${artifact.signal}`, "", "## Calendar Schedule", ""];
   for (const item of items) {
     lines.push(`### ${item.title}`);
     lines.push(`- Date: ${item.date}`);
@@ -524,25 +673,13 @@ function buildScheduleReport(items: ScheduleItem[], artifact: ExecutionArtifact)
     lines.push(`- Owner: ${item.owner}`);
     lines.push(`- Lane: ${item.lane}`);
     lines.push(`- Status: ${item.status}`);
-    if (item.notes.trim()) {
-      lines.push(`- Notes: ${item.notes.trim()}`);
-    }
+    if (item.notes.trim()) lines.push(`- Notes: ${item.notes.trim()}`);
     lines.push("");
   }
-
-  lines.push("## AI Notes");
-  lines.push("");
-  for (const item of artifact.criticalPath) {
-    lines.push(`- ${item}`);
-  }
-
-  lines.push("");
-  lines.push("## Milestones");
-  lines.push("");
-  for (const item of artifact.milestones) {
-    lines.push(`- ${item}`);
-  }
-
+  lines.push("## AI Insights", "");
+  for (const item of insights) lines.push(`- ${item}`);
+  lines.push("", "## Milestones", "");
+  for (const item of artifact.milestones) lines.push(`- ${item}`);
   return lines.join("\n");
 }
 
@@ -599,6 +736,12 @@ function formatAgendaDate(value: string) {
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", weekday: "short" }).format(parsed);
 }
 
+function formatHourLabel(hour: number) {
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const normalized = hour % 12 === 0 ? 12 : hour % 12;
+  return `${normalized} ${suffix}`;
+}
+
 function formatIcsDateTime(dateValue: string, timeValue: string) {
   const safeTime = timeValue || "09:00";
   const date = new Date(`${dateValue}T${safeTime}:00`);
@@ -615,6 +758,21 @@ function formatIcsTimestamp(date: Date) {
   return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
 }
 
+function toMinutes(value: string) {
+  const [hours, minutes] = value.split(":").map((part) => Number(part));
+  return hours * 60 + minutes;
+}
+
+function toTimeString(totalMinutes: number) {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${`${hours}`.padStart(2, "0")}:${`${minutes}`.padStart(2, "0")}`;
+}
+
+function clampMinutes(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
 function escapeIcs(value: string) {
   return value.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
 }
@@ -628,6 +786,28 @@ function getSeededScheduleItems(artifact: ExecutionArtifact) {
   if (stored?.title === slugify(artifact.title || "workspace-schedule") && stored.items.length) {
     return stored.items;
   }
-
   return buildScheduleItems(artifact);
+}
+
+function badgeClassName(status: ScheduleItem["status"]) {
+  if (status === "blocked") return "truncate rounded-full bg-rose-100 px-2 py-1 text-[11px] font-medium text-rose-800 cursor-grab";
+  if (status === "watch") return "truncate rounded-full bg-amber-100 px-2 py-1 text-[11px] font-medium text-amber-800 cursor-grab";
+  return "truncate rounded-full bg-cyan-100 px-2 py-1 text-[11px] font-medium text-cyan-900 cursor-grab";
+}
+
+function timelineClassName(status: ScheduleItem["status"]) {
+  if (status === "blocked") return "absolute inset-x-2 rounded-xl border border-rose-200 bg-rose-100 px-3 py-2 shadow-sm cursor-grab";
+  if (status === "watch") return "absolute inset-x-2 rounded-xl border border-amber-200 bg-amber-100 px-3 py-2 shadow-sm cursor-grab";
+  return "absolute inset-x-2 rounded-xl border border-cyan-200 bg-cyan-100 px-3 py-2 shadow-sm cursor-grab";
+}
+
+function getConflictCount(items: ScheduleItem[]) {
+  const sorted = [...items].sort((left, right) => toMinutes(left.start) - toMinutes(right.start));
+  let conflicts = 0;
+  for (let index = 1; index < sorted.length; index += 1) {
+    if (toMinutes(sorted[index - 1].end) > toMinutes(sorted[index].start)) {
+      conflicts += 1;
+    }
+  }
+  return conflicts;
 }
