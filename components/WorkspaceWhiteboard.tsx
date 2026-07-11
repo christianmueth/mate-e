@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import type { UsageEntitlement } from "@/lib/subscriptionAccess";
 import {
   WORKSPACE_CONTEXT_EVENT,
   readWorkspaceContext,
@@ -37,6 +39,13 @@ type WhiteboardAssistSuggestion = {
   cautions: string[];
   nodes: Array<{ id: string; label: string; x: number; y: number }>;
   connections: Array<{ from: string; to: string; label: string }>;
+};
+
+type WhiteboardAssistResponse = {
+  ok: boolean;
+  suggestion?: WhiteboardAssistSuggestion;
+  error?: string;
+  entitlement?: UsageEntitlement | null;
 };
 
 type StrokePoint = { x: number; y: number };
@@ -320,6 +329,7 @@ export default function WorkspaceWhiteboard() {
   const [pdfCurrentPage, setPdfCurrentPage] = useState(1);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [assistLoading, setAssistLoading] = useState<WhiteboardAssistIntent | null>(null);
+  const [assistEntitlement, setAssistEntitlement] = useState<UsageEntitlement | null>(null);
   const [imagePromptLoading, setImagePromptLoading] = useState(false);
   const [assistSuggestion, setAssistSuggestion] = useState<WhiteboardAssistSuggestion | null>(null);
   const [showOverlayGuide, setShowOverlayGuide] = useState(true);
@@ -1334,11 +1344,15 @@ export default function WorkspaceWhiteboard() {
         }),
       });
 
-      const data = await safeJson(response);
+      const data = (await safeJson(response)) as WhiteboardAssistResponse | null;
       if (!response.ok || !data?.ok || !data.suggestion) {
+        if (data?.entitlement) {
+          setAssistEntitlement(data.entitlement);
+        }
         throw new Error(data?.error || "Whiteboard assist is unavailable right now.");
       }
       setAssistSuggestion(data.suggestion as WhiteboardAssistSuggestion);
+      setAssistEntitlement(data.entitlement || null);
       setShowOverlayGuide(true);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Whiteboard assist is unavailable right now.");
@@ -2482,13 +2496,28 @@ export default function WorkspaceWhiteboard() {
                           key={intent}
                           type="button"
                           onClick={() => requestAssist(intent as WhiteboardAssistIntent)}
-                          disabled={assistLoading !== null}
+                          disabled={assistLoading !== null || Boolean(assistEntitlement?.locked)}
                           className="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-xs font-medium text-cyan-950 hover:bg-cyan-100 disabled:opacity-60"
                         >
                           {assistLoading === intent ? "Thinking..." : label}
                         </button>
                       ))}
                     </div>
+                    {assistEntitlement ? (
+                      <div className={assistEntitlement.locked
+                        ? "mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-950"
+                        : "mt-3 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm text-slate-700"
+                      }>
+                        <p>{assistEntitlement.message}</p>
+                        {!assistEntitlement.premiumActive ? (
+                          <div className="mt-3">
+                            <Link href="/app/billing" className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50">
+                              Upgrade to Premium
+                            </Link>
+                          </div>
+                        ) : null}
+                      </div>
+                    ) : null}
                     <label className="mt-4 block text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
                       <input
                         value={workspaceGoal}

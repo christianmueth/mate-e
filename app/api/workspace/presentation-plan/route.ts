@@ -1,5 +1,9 @@
+import { auth } from "@clerk/nextjs/server";
+import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { chatV1 } from "@/lib/aiGateway";
+import { prisma, safeUpsertUser } from "@/lib/db";
+import { getPresentationPlanEntitlement } from "@/lib/subscriptionAccess";
 import { sanitizeWorkspaceContext, summarizeWorkspaceContext, type WorkspaceContext } from "@/lib/workspaceContext";
 import { buildWorkspaceConstitutionPrompt } from "@/lib/workspaceConstitution";
 
@@ -48,12 +52,27 @@ const presentationPlanSchema = {
 
 export async function POST(req: Request) {
   try {
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = (await req.json()) as PresentationPlanRequest;
     const sourceText = clean(body.sourceText).slice(0, 10000);
     const workspaceContext = sanitizeWorkspaceContext(body.workspaceContext);
     if (!sourceText) {
       return NextResponse.json({ ok: false, error: "Source material is required." }, { status: 400 });
     }
+
+    const entitlement = await getPresentationPlanEntitlement(clerkUserId);
+    if (entitlement.locked) {
+      return NextResponse.json(
+        { ok: false, error: entitlement.message, code: "SUBSCRIPTION_REQUIRED", entitlement },
+        { status: 402 }
+      );
+    }
+
+    const user = await safeUpsertUser(clerkUserId, { id: true });
 
     let plan: object;
 
@@ -104,7 +123,29 @@ export async function POST(req: Request) {
     }
 
     const exportMarkdown = buildMarkdown(plan as any);
-    return NextResponse.json({ ok: true, plan: { ...(plan as object), exportMarkdown } });
+    if (user?.id) {
+      await prisma.reasoningRun.create({
+        data: {
+          userId: user.id,
+          mode: "presentation_plan",
+          origin: "workspace_presentation_planner",
+          title: clean(body.sourceTitle) || "Workspace presentation plan",
+          prompt: sourceText.slice(0, 2000),
+          metadata: {
+            sourceType: clean(body.sourceType) || "notes",
+            audience: clean(body.audience) || null,
+            presentationGoal: clean(body.presentationGoal) || null,
+            generatedTitle: typeof (plan as { title?: unknown }).title === "string" ? (plan as { title?: string }).title : null,
+          } as Prisma.InputJsonValue,
+        },
+      }).catch(() => null);
+    }
+
+    return NextResponse.json({
+      ok: true,
+      plan: { ...(plan as object), exportMarkdown },
+      entitlement: user ? await getPresentationPlanEntitlement(clerkUserId) : entitlement,
+    });
   } catch (error: any) {
     if (error?.code === "UNAUTHORIZED") {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });

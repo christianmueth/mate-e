@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import type { UsageEntitlement } from "@/lib/subscriptionAccess";
 import { readWorkspaceContext, updateWorkspaceContext, upsertWorkspaceAsset } from "@/lib/workspaceContext";
 
 async function safeJson(response: Response) {
@@ -28,6 +30,13 @@ type PresentationPlan = {
   exportMarkdown: string;
 };
 
+type PresentationPlanResponse = {
+  ok: boolean;
+  plan?: PresentationPlan;
+  error?: string;
+  entitlement?: UsageEntitlement | null;
+};
+
 const sourceTypeOptions = [
   { value: "notes", label: "Notes" },
   { value: "study-set", label: "Reference set" },
@@ -45,6 +54,7 @@ export default function WorkspacePresentationPlanner() {
   const [loading, setLoading] = useState(false);
   const [exportingPptx, setExportingPptx] = useState(false);
   const [plan, setPlan] = useState<PresentationPlan | null>(null);
+  const [entitlement, setEntitlement] = useState<UsageEntitlement | null>(null);
 
   const canGenerate = sourceText.trim().length > 0;
 
@@ -97,11 +107,15 @@ export default function WorkspacePresentationPlanner() {
         }),
       });
 
-      const data = await safeJson(response);
+      const data = (await safeJson(response)) as PresentationPlanResponse | null;
       if (!response.ok || !data?.ok || !data.plan) {
+        if (data?.entitlement) {
+          setEntitlement(data.entitlement);
+        }
         throw new Error(data?.error || "Presentation planning is unavailable right now.");
       }
       setPlan(data.plan as PresentationPlan);
+      setEntitlement(data.entitlement || null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Presentation planning is unavailable right now.");
     } finally {
@@ -204,10 +218,26 @@ export default function WorkspacePresentationPlanner() {
 
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs leading-5 text-slate-500">Mate-E proposes structure and speaker guidance, but you stay in control of the final narrative and slide flow.</p>
-            <button type="button" onClick={generatePlan} disabled={!canGenerate || loading} className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
+            <button type="button" onClick={generatePlan} disabled={!canGenerate || loading || Boolean(entitlement?.locked)} className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white disabled:opacity-60">
               {loading ? "Organizing..." : "Generate structure"}
             </button>
           </div>
+
+          {entitlement ? (
+            <div className={entitlement.locked
+              ? "rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-950"
+              : "rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700"
+            }>
+              <p>{entitlement.message}</p>
+              {!entitlement.premiumActive ? (
+                <div className="mt-3">
+                  <Link href="/app/billing" className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50">
+                    Upgrade to Premium
+                  </Link>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </section>
 

@@ -1,5 +1,9 @@
+import { auth } from "@clerk/nextjs/server";
+import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { chatV1 } from "@/lib/aiGateway";
+import { prisma, safeUpsertUser } from "@/lib/db";
+import { getWhiteboardAssistEntitlement } from "@/lib/subscriptionAccess";
 import { buildWorkspaceConstitutionPrompt } from "@/lib/workspaceConstitution";
 
 export const runtime = "nodejs";
@@ -58,8 +62,22 @@ const whiteboardAssistSchema = {
 
 export async function POST(req: Request) {
   try {
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) {
+      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+    }
+
     const body = (await req.json()) as WhiteboardAssistRequest;
     const intent = body.intent || "visualize";
+    const entitlement = await getWhiteboardAssistEntitlement(clerkUserId);
+    if (entitlement.locked) {
+      return NextResponse.json(
+        { ok: false, error: entitlement.message, code: "SUBSCRIPTION_REQUIRED", entitlement },
+        { status: 402 }
+      );
+    }
+
+    const user = await safeUpsertUser(clerkUserId, { id: true });
 
     const response = await chatV1({
       allowUnauthenticated: true,
@@ -95,7 +113,28 @@ export async function POST(req: Request) {
       throw new Error("Whiteboard assist did not return structured output.");
     }
 
-    return NextResponse.json({ ok: true, suggestion });
+    if (user?.id) {
+      await prisma.reasoningRun.create({
+        data: {
+          userId: user.id,
+          mode: "whiteboard_assist",
+          origin: "workspace_whiteboard_assist",
+          title: clean(body.workspaceGoal) || "Workspace whiteboard assist",
+          prompt: clean(body.boardSummary) || clean(body.workspaceGoal) || intent,
+          metadata: {
+            intent,
+            annotationCount: Array.isArray(body.annotations) ? body.annotations.length : 0,
+            hasSourceAttachment: Boolean(body.hasSourceAttachment),
+          } as Prisma.InputJsonValue,
+        },
+      }).catch(() => null);
+    }
+
+    return NextResponse.json({
+      ok: true,
+      suggestion,
+      entitlement: user ? await getWhiteboardAssistEntitlement(clerkUserId) : entitlement,
+    });
   } catch (error: any) {
     if (error?.code === "UNAUTHORIZED") {
       return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
