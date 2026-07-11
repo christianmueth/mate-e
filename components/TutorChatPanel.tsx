@@ -69,6 +69,7 @@ export default function TutorChatPanel() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [enabled, setEnabled] = useState(true);
+  const [draft, setDraft] = useState("");
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [messages, setMessages] = useState<TutorChatMessage[]>([]);
@@ -245,6 +246,7 @@ export default function TutorChatPanel() {
       }
       setContext(data.context || null);
       setEntitlement(data.entitlement || null);
+      setDraft("");
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, "We couldn't get workspace guidance right now."));
     } finally {
@@ -258,32 +260,42 @@ export default function TutorChatPanel() {
       : "pointer-events-none fixed inset-x-4 bottom-4 z-40 flex justify-end sm:left-auto sm:right-5 sm:w-[16rem]"
     }>
       <div className="pointer-events-auto w-full overflow-hidden rounded-[1.25rem] border border-slate-200 bg-white/95 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.12)] backdrop-blur">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Next move</p>
-        <p className="mt-2 text-sm font-semibold text-slate-950">{recommendation.nextAction}</p>
-        <p className="mt-2 text-xs leading-5 text-slate-600">{recommendation.currentGoal}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Ask Mate-E</p>
+
+        <input
+          type="text"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              void submitMessage(draft);
+            }
+          }}
+          placeholder={loading ? "Loading..." : `Ask about ${truncateText(recommendation.currentGoal, 28).toLowerCase()}`}
+          disabled={loading || sending || Boolean(entitlement?.locked)}
+          className="mt-2 w-full rounded-full border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-900 disabled:cursor-not-allowed disabled:bg-slate-100"
+        />
 
         {entitlement ? (
           <p className={entitlement.locked ? "mt-2 text-xs text-amber-800" : "mt-2 text-xs text-slate-500"}>{entitlement.message}</p>
         ) : null}
 
-        <div className="mt-3 flex flex-col gap-2">
-          {recommendation.actions.slice(0, 1).map((action) => (
-            <button
-              key={action.label}
-              type="button"
-              className="rounded-full bg-slate-950 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
-              disabled={sending || Boolean(entitlement?.locked)}
-              onClick={() => void submitMessage(action.prompt)}
-            >
-              {sending ? "Working..." : action.label}
-            </button>
-          ))}
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            type="button"
+            className="rounded-full bg-slate-950 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
+            disabled={loading || sending || !draft.trim() || Boolean(entitlement?.locked)}
+            onClick={() => void submitMessage(draft)}
+          >
+            {sending ? "..." : "Send"}
+          </button>
 
           <Link
             href="/app/workspace"
             className="rounded-full border border-slate-200 bg-white px-3 py-2 text-center text-xs font-medium text-slate-700 hover:bg-slate-50"
           >
-            Open Do page
+            Do
           </Link>
         </div>
       </div>
