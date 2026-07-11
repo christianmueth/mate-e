@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { prisma, safeUpsertUser } from "@/lib/db";
 import { chatV1, type ChatV1Message } from "@/lib/aiGateway";
 import { formatStudentState } from "@/lib/reasoningEngine/studentState";
+import { getTutorChatEntitlement } from "@/lib/subscriptionAccess";
 import { sanitizeTutorChatSessionContext, type TutorChatSessionContext } from "@/lib/tutorChatSessionContext";
 import { sanitizeWorkspaceContext, summarizeWorkspaceContext, type WorkspaceContext } from "@/lib/workspaceContext";
 import { buildWorkspaceConstitutionPrompt } from "@/lib/workspaceConstitution";
@@ -37,6 +38,7 @@ export async function GET(req: Request) {
 
     const requestUrl = new URL(req.url);
     const requestedDeckId = cleanQueryValue(requestUrl.searchParams.get("deckId"));
+    const entitlement = await getTutorChatEntitlement(clerkUserId);
     const user = await prisma.user.findUnique({
       where: { clerkUserId },
       select: {
@@ -50,6 +52,7 @@ export async function GET(req: Request) {
         ok: true,
         messages: [],
         context: buildEmptyContext(),
+        entitlement,
       });
     }
 
@@ -77,6 +80,7 @@ export async function GET(req: Request) {
       ok: true,
       messages: toHistory(recentRuns),
       context: buildContextSnapshot({ studentState, deck, recentRuns }),
+      entitlement,
     });
   } catch (error) {
     console.error("[TutorChat] GET failed:", error);
@@ -84,6 +88,7 @@ export async function GET(req: Request) {
       ok: true,
       messages: [],
       context: buildEmptyContext(),
+      entitlement: null,
     });
   }
 }
@@ -101,6 +106,18 @@ export async function POST(req: Request) {
     const workspaceContext = sanitizeWorkspaceContext(body.workspaceContext);
     if (!message) {
       return NextResponse.json({ error: "Message is required", code: "BAD_REQUEST" }, { status: 400 });
+    }
+
+    const entitlement = await getTutorChatEntitlement(clerkUserId);
+    if (entitlement.locked) {
+      return NextResponse.json(
+        {
+          error: entitlement.message,
+          code: "SUBSCRIPTION_REQUIRED",
+          entitlement,
+        },
+        { status: 402 }
+      );
     }
 
     const user = await safeUpsertUser(clerkUserId, {
@@ -196,6 +213,7 @@ export async function POST(req: Request) {
       },
       context: buildContextSnapshot({ studentState, deck, recentRuns }),
       degraded: !user,
+      entitlement: user ? await getTutorChatEntitlement(clerkUserId) : entitlement,
     });
   } catch (error) {
     console.error("[TutorChat] POST failed:", error);

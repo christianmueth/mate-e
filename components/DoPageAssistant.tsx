@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { readWorkspaceContext } from "@/lib/workspaceContext";
+import type { TutorChatEntitlement } from "@/lib/subscriptionAccess";
 
 type AssistantAction = {
   label: string;
@@ -22,6 +24,7 @@ type TutorChatResponse = {
   messages?: TutorChatMessage[];
   message?: TutorChatMessage;
   error?: string;
+  entitlement?: TutorChatEntitlement | null;
 };
 
 export default function DoPageAssistant({
@@ -41,6 +44,7 @@ export default function DoPageAssistant({
   const [sending, setSending] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [latestAssistantMessage, setLatestAssistantMessage] = useState<TutorChatMessage | null>(null);
+  const [entitlement, setEntitlement] = useState<TutorChatEntitlement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +61,7 @@ export default function DoPageAssistant({
         const latest = [...(payload.messages || [])].reverse().find((message) => message.role === "assistant") || null;
         if (!cancelled) {
           setLatestAssistantMessage(latest);
+          setEntitlement(payload?.entitlement || null);
         }
       } catch (error) {
         if (!cancelled) {
@@ -86,9 +91,13 @@ export default function DoPageAssistant({
       return;
     }
 
+    if (entitlement?.locked) {
+      return;
+    }
+
     handledStarterPromptRef.current = routeKey;
     void submitMessage(starterPrompt);
-  }, [routeKey, sending, starterPrompt]);
+  }, [entitlement?.locked, routeKey, sending, starterPrompt]);
 
   async function submitMessage(promptOverride?: string) {
     const content = (promptOverride ?? draft).trim();
@@ -112,10 +121,14 @@ export default function DoPageAssistant({
 
       const payload = (await safeJson(response)) as TutorChatResponse | null;
       if (!response.ok || !payload?.ok || !payload.message) {
+        if (payload?.entitlement) {
+          setEntitlement(payload.entitlement);
+        }
         throw new Error(payload?.error || "We couldn't generate guidance right now.");
       }
 
       setLatestAssistantMessage(payload.message);
+      setEntitlement(payload.entitlement || null);
       setDraft("");
     } catch (error) {
       toast.error(getErrorMessage(error, "We couldn't generate guidance right now."));
@@ -134,13 +147,29 @@ export default function DoPageAssistant({
         </div>
       </div>
 
+      {entitlement ? (
+        <div className={entitlement.locked
+          ? "mt-5 rounded-[1.25rem] border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-950"
+          : "mt-5 rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700"
+        }>
+          <p>{entitlement.message}</p>
+          {!entitlement.premiumActive ? (
+            <div className="mt-3">
+              <Link href="/app/billing" className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50">
+                Upgrade to Premium
+              </Link>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         {actions.map((action) => (
           <button
             key={action.label}
             type="button"
             onClick={() => void submitMessage(action.prompt)}
-            disabled={sending}
+            disabled={sending || Boolean(entitlement?.locked)}
             className="rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-4 text-left text-sm font-medium text-slate-900 transition hover:border-slate-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
           >
             {sending ? "Working..." : action.label}
@@ -154,13 +183,14 @@ export default function DoPageAssistant({
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           placeholder="Ask Mate-E to clarify the next move, surface the blocker, or turn the work into a plan."
+          disabled={Boolean(entitlement?.locked)}
           className="mt-3 min-h-[96px] w-full rounded-[1rem] border border-slate-300 bg-white px-3 py-3 text-sm text-slate-900 outline-none focus:border-slate-900"
         />
         <div className="mt-3 flex justify-end">
           <button
             type="button"
             onClick={() => void submitMessage()}
-            disabled={sending || !draft.trim()}
+            disabled={sending || !draft.trim() || Boolean(entitlement?.locked)}
             className="rounded-full bg-slate-950 px-5 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-slate-300"
           >
             {sending ? "Thinking..." : "Ask Mate-E"}

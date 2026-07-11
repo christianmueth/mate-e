@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
+import type { TutorChatEntitlement } from "@/lib/subscriptionAccess";
 import {
   TUTOR_CHAT_SESSION_CONTEXT_EVENT,
   LEGACY_TUTOR_CHAT_SESSION_CONTEXT_EVENT,
@@ -38,6 +39,7 @@ type TutorChatResponse = {
   message?: TutorChatMessage;
   context?: TutorChatContext;
   error?: string;
+  entitlement?: TutorChatEntitlement | null;
 };
 
 const OPEN_STORAGE_KEY = "mate-e:tutor-chat-open";
@@ -73,6 +75,7 @@ export default function TutorChatPanel() {
   const [sending, setSending] = useState(false);
   const [messages, setMessages] = useState<TutorChatMessage[]>([]);
   const [context, setContext] = useState<TutorChatContext | null>(null);
+  const [entitlement, setEntitlement] = useState<TutorChatEntitlement | null>(null);
   const [sessionContext, setSessionContext] = useState<TutorChatSessionContext | null>(null);
   const [workspaceState, setWorkspaceState] = useState<WorkspaceContext>(() => readWorkspaceContext());
   const isWorkspaceRoute = pathname?.startsWith("/app") ?? false;
@@ -167,6 +170,7 @@ export default function TutorChatPanel() {
         if (!cancelled) {
           setMessages(Array.isArray(data.messages) ? data.messages : []);
           setContext(data.context || null);
+          setEntitlement(data.entitlement || null);
         }
       } catch (error: unknown) {
         if (!cancelled) toast.error(getErrorMessage(error, "We couldn't load workspace continuity right now."));
@@ -248,9 +252,13 @@ export default function TutorChatPanel() {
       });
       const data = (await safeJson(res)) as TutorChatResponse | null;
       if (!res.ok || !data?.ok || !data.message) {
+        if (data?.entitlement) {
+          setEntitlement(data.entitlement);
+        }
         throw new Error(data?.error || "We couldn't get workspace guidance right now.");
       }
       setContext(data.context || null);
+      setEntitlement(data.entitlement || null);
       setOpen(true);
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, "We couldn't get workspace guidance right now."));
@@ -311,13 +319,22 @@ export default function TutorChatPanel() {
                     key={action.label}
                     type="button"
                     className="rounded-full bg-slate-950 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
-                    disabled={sending}
+                    disabled={sending || Boolean(entitlement?.locked)}
                     onClick={() => void submitMessage(action.prompt)}
                   >
                     {sending ? "Working..." : action.label}
                   </button>
                 ))}
               </div>
+
+              {entitlement ? (
+                <div className={entitlement.locked
+                  ? "rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"
+                  : "rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
+                }>
+                  <p>{entitlement.message}</p>
+                </div>
+              ) : null}
 
               <div className={isPlanRoute ? "rounded-2xl border border-slate-200 bg-white p-3" : "rounded-2xl border border-slate-200 bg-white p-4"}>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Why now</p>
