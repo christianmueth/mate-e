@@ -169,41 +169,6 @@ export default async function WorkspacePage() {
     <div className="mx-auto flex max-w-5xl flex-col gap-8 p-6">
       <WorkspaceSectionNav currentPath="/app/workspace" projectName={memoryCard.workspaceName} />
 
-      <section className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950 p-7 text-white shadow-[0_24px_90px_rgba(15,23,42,0.28)]">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">Do</p>
-        <h1 className="mt-3 max-w-3xl text-3xl font-semibold tracking-tight sm:text-4xl">Keep this moving.</h1>
-        <div className="mt-6 rounded-[1.75rem] border border-white/12 bg-white/8 p-5 backdrop-blur-sm">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold text-white">{primaryAction.title}</h2>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-200">{"detail" in primaryAction ? primaryAction.detail : primaryAction.body}</p>
-            </div>
-            <Link href={primaryAction.href} className="inline-flex rounded-full bg-white px-5 py-3 text-sm font-medium text-slate-950 hover:bg-slate-100">
-              {primaryAction.cta}
-            </Link>
-          </div>
-        </div>
-
-      </section>
-
-      <section>
-        <article className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Project</p>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{memoryCard.workspaceName}</h2>
-          <div className="mt-5 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-5">
-            <p className="text-sm leading-6 text-slate-700">Last active: {memoryCard.lastActive}</p>
-            <p className="mt-2 text-sm leading-6 text-slate-700">Status: {memoryCard.progressLabel}</p>
-            <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Next action</p>
-            <p className="mt-2 text-lg font-semibold text-slate-950">{memoryCard.nextSuggestedStep}</p>
-            <div className="mt-5">
-              <Link href={primaryAction.href} className="inline-flex rounded-full bg-slate-950 px-5 py-3 text-sm font-medium text-white hover:bg-slate-800">
-                {primaryAction.cta}
-              </Link>
-            </div>
-          </div>
-        </article>
-      </section>
-
       <DoPageAssistant
         title="Use Mate-E on the work itself"
         subtitle="Run bounded AI guidance here on the active workspace instead of carrying a full chat surface across every page."
