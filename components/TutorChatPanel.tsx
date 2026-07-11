@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -74,9 +75,6 @@ export default function TutorChatPanel() {
   const [context, setContext] = useState<TutorChatContext | null>(null);
   const [sessionContext, setSessionContext] = useState<TutorChatSessionContext | null>(null);
   const [workspaceState, setWorkspaceState] = useState<WorkspaceContext>(() => readWorkspaceContext());
-  const [draft, setDraft] = useState("");
-  const [showComposer, setShowComposer] = useState(false);
-
   const isWorkspaceRoute = pathname?.startsWith("/app") ?? false;
   const isExecuteRoute = pathname === "/app/workspace";
   const isCaptureRoute = pathname?.startsWith("/app/workspace/whiteboard") ?? false;
@@ -86,26 +84,16 @@ export default function TutorChatPanel() {
   const isDeckStudyRoute = Boolean(deckId);
   const focusConcept = searchParams.get("concept");
   const focusReason = searchParams.get("reason");
-  const workspaceMode = searchParams.get("workspaceMode");
-  const starterPrompt = searchParams.get("starterPrompt");
   const routeKey = `${pathname || ""}?${searchParams.toString()}`;
   const activeSessionContext =
     isDeckStudyRoute && sessionContext?.deckId === deckId && !sessionContext.sessionComplete
       ? sessionContext
       : null;
-  const lastStarterPromptRef = useRef<string | null>(null);
-
   useEffect(() => {
     const stored = window.localStorage.getItem(OPEN_STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_OPEN_STORAGE_KEY);
     if (stored === "0") setOpen(false);
     if (stored === "1") setOpen(true);
   }, []);
-
-  useEffect(() => {
-    if (workspaceMode === "instructional-chat" || starterPrompt) {
-      setOpen(true);
-    }
-  }, [starterPrompt, workspaceMode]);
 
   useEffect(() => {
     setEnabled(readTutorChatEnabled());
@@ -225,27 +213,9 @@ export default function TutorChatPanel() {
     }));
   }, [activeSessionContext, context, messages]);
 
-  useEffect(() => {
-    if (!isWorkspaceRoute) return;
-
-    const nextStarter = starterPrompt?.trim() || null;
-    if (!nextStarter) {
-      lastStarterPromptRef.current = null;
-      return;
-    }
-
-    if (lastStarterPromptRef.current === routeKey) return;
-
-    setOpen(true);
-    setShowComposer(true);
-    setDraft((current) => current.trim() ? current : nextStarter);
-    lastStarterPromptRef.current = routeKey;
-  }, [isWorkspaceRoute, routeKey, starterPrompt]);
-
   if (!isWorkspaceRoute || !enabled || isExecuteRoute || isCaptureRoute || isBillingRoute) return null;
 
   const summaryLabel = buildSummaryLabel({ pathname, deckId, deckTitle: context?.deckTitle ?? null });
-  const latestAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant") ?? null;
   const recommendation = buildRecommendationCard({
     pathname,
     summaryLabel,
@@ -256,19 +226,10 @@ export default function TutorChatPanel() {
     focusReason,
   });
 
-  async function submitMessage(prefill?: string) {
-    const content = (prefill ?? draft).trim();
+  async function submitMessage(prefill: string) {
+    const content = prefill.trim();
     if (!content || sending) return;
 
-    const optimisticMessage: TutorChatMessage = {
-      id: `local-${Date.now()}`,
-      role: "user",
-      content,
-      createdAt: new Date().toISOString(),
-    };
-
-    setMessages((current) => [...current, optimisticMessage]);
-    setDraft("");
     setSending(true);
 
     try {
@@ -289,11 +250,9 @@ export default function TutorChatPanel() {
       if (!res.ok || !data?.ok || !data.message) {
         throw new Error(data?.error || "We couldn't get workspace guidance right now.");
       }
-      setMessages((current) => [...current, data.message as TutorChatMessage]);
       setContext(data.context || null);
       setOpen(true);
     } catch (error: unknown) {
-      setMessages((current) => current.filter((item) => item.id !== optimisticMessage.id));
       toast.error(getErrorMessage(error, "We couldn't get workspace guidance right now."));
     } finally {
       setSending(false);
@@ -360,84 +319,22 @@ export default function TutorChatPanel() {
                 ))}
               </div>
 
-              <details className={isPlanRoute ? "rounded-2xl border border-slate-200 bg-white p-3" : "rounded-2xl border border-slate-200 bg-white p-4"}>
-                <summary className="cursor-pointer text-sm font-medium text-slate-900">{isPlanRoute ? "More" : "Show more"}</summary>
-                <div className="mt-4 space-y-4">
-                  {isPlanRoute ? (
-                    <div className="text-sm text-slate-700">
-                      <p><span className="font-medium text-slate-950">Why now:</span> {recommendation.risk}</p>
-                    </div>
-                  ) : null}
-
-                  <div className="text-sm text-slate-700">
-                    <p><span className="font-medium text-slate-950">Last project:</span> {recommendation.lastWorkedOn}</p>
-                    <p className="mt-2"><span className="font-medium text-slate-950">Last active:</span> {recommendation.lastUpdated}</p>
-                    <p className="mt-2"><span className="font-medium text-slate-950">Changes since then:</span> {recommendation.changes}</p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    {recommendation.actions.slice(1).map((action) => (
-                      <button
-                        key={action.label}
-                        type="button"
-                        className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                        disabled={sending}
-                        onClick={() => void submitMessage(action.prompt)}
-                      >
-                        {sending ? "Working..." : action.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {bootstrapping || loading ? (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-600">
-                  Loading recommendation...
-                </div>
-              ) : latestAssistantMessage ? (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm leading-6 text-slate-700">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Note</p>
-                  <p className="mt-2 whitespace-pre-wrap">{latestAssistantMessage.content}</p>
-                </div>
-                  ) : null}
-                </div>
-              </details>
-
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs text-slate-500">{recommendation.modeLabel}</p>
-                <button
-                  type="button"
-                  className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                  onClick={() => setShowComposer((current) => !current)}
-                >
-                  {showComposer ? "Hide custom" : "Ask"}
-                </button>
+              <div className={isPlanRoute ? "rounded-2xl border border-slate-200 bg-white p-3" : "rounded-2xl border border-slate-200 bg-white p-4"}>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Why now</p>
+                <p className="mt-2 text-sm leading-6 text-slate-700">{recommendation.risk}</p>
+                <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Last active</p>
+                <p className="mt-2 text-sm leading-6 text-slate-700">{recommendation.lastUpdated}</p>
               </div>
 
-              {showComposer ? (
-                <form
-                  className="space-y-3"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void submitMessage();
-                  }}
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs text-slate-500">{recommendation.modeLabel}</p>
+                <Link
+                  href="/app/workspace"
+                  className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
                 >
-                  <textarea
-                    value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
-                    placeholder="Ask for a specific next move"
-                    className="min-h-[76px] w-full rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900"
-                  />
-                  <div className="flex justify-end">
-                    <button
-                      type="submit"
-                      className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-                      disabled={sending || !draft.trim()}
-                    >
-                      {sending ? "Working..." : "Ask"}
-                    </button>
-                  </div>
-                </form>
-              ) : null}
+                  Open Do page
+                </Link>
+              </div>
             </div>
           </div>
         ) : (

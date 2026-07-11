@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
+import DoPageAssistant from "@/components/DoPageAssistant";
 import WorkspaceSectionNav from "@/components/WorkspaceSectionNav";
 import { deriveProjectName } from "@/lib/currentProject";
 import { prisma } from "@/lib/db";
@@ -63,6 +64,11 @@ type WorkspaceMemoryCard = {
   lastActive: string;
   progressLabel: string;
   nextSuggestedStep: string;
+};
+
+type DoAssistantAction = {
+  label: string;
+  prompt: string;
 };
 
 export default async function WorkspacePage() {
@@ -157,6 +163,7 @@ export default async function WorkspacePage() {
   const memoryCard = buildWorkspaceMemoryCard(workspaceContext, continuityLabel, nextActions[0]?.title ?? fallbackAction.title);
   const secondaryActions = nextActions.slice(1, 3);
   const primaryAction = nextActions[0] ?? fallbackAction;
+  const doAssistantActions = buildDoAssistantActions(workspaceContext, primaryAction, memoryCard.workspaceName);
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-8 p-6">
@@ -196,6 +203,12 @@ export default async function WorkspacePage() {
           </div>
         </article>
       </section>
+
+      <DoPageAssistant
+        title="Use Mate-E on the work itself"
+        subtitle="Run bounded AI guidance here on the active workspace instead of carrying a full chat surface across every page."
+        actions={doAssistantActions}
+      />
 
       {secondaryActions.length ? (
         <section>
@@ -542,6 +555,37 @@ function compactActionLabel(title: string, cta: string) {
 
 function trimUpdatedLabel(value: string) {
   return value.replace(/^Updated\s+/i, "");
+}
+
+function buildDoAssistantActions(
+  context: WorkspaceContext | null,
+  primaryAction: OperationsFeedItem | FocusQueueItem,
+  workspaceName: string
+): DoAssistantAction[] {
+  const activeFocus = context?.whiteboardReference?.workspaceGoal
+    || context?.presentationReference?.title
+    || context?.weakConcepts?.[0]
+    || primaryAction.title
+    || workspaceName;
+
+  return [
+    {
+      label: "Define the next move",
+      prompt: `Turn ${activeFocus} into one concrete next step I can do now. Keep it bounded and practical.`,
+    },
+    {
+      label: "Find the blocker",
+      prompt: `What is the most likely blocker preventing progress on ${activeFocus}, and how should I resolve it first?`,
+    },
+    {
+      label: "Create a short plan",
+      prompt: `Build a short execution plan for ${activeFocus} with milestones, dependencies, and the first move to start with.`,
+    },
+    {
+      label: "Give me an alternative",
+      prompt: `If ${primaryAction.title} is not the best next move for ${activeFocus}, what is the strongest alternative and why?`,
+    },
+  ];
 }
 
 function isOlderThanDays(value: string, days: number) {
