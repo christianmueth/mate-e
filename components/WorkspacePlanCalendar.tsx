@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { readWorkspaceContext, updateWorkspaceContext, type WorkspacePlanScheduleItem } from "@/lib/workspaceContext";
 
 type ExecutionPhase = {
   title: string;
@@ -24,40 +25,43 @@ type ExecutionArtifact = {
   feed: Array<{ title: string; body: string; tone: "risk" | "attention" | "stable" }>;
 };
 
-type ScheduleItem = {
-  id: string;
-  title: string;
-  date: string;
-  start: string;
-  end: string;
-  owner: string;
-  lane: "phase" | "milestone" | "task";
-  notes: string;
-  status: "ready" | "watch" | "blocked";
-};
+type ScheduleItem = WorkspacePlanScheduleItem;
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default function WorkspacePlanCalendar({ artifact }: { artifact: ExecutionArtifact }) {
+  const scheduleKey = slugify(artifact.title || "workspace-schedule");
   const seedKey = JSON.stringify({
     title: artifact.title,
     phases: artifact.phases,
     milestones: artifact.milestones,
     criticalPath: artifact.criticalPath,
   });
-  const [items, setItems] = useState<ScheduleItem[]>(() => buildScheduleItems(artifact));
-  const [selectedId, setSelectedId] = useState<string | null>(() => buildScheduleItems(artifact)[0]?.id ?? null);
+  const [items, setItems] = useState<ScheduleItem[]>(() => getSeededScheduleItems(artifact));
+  const [selectedId, setSelectedId] = useState<string | null>(() => getSeededScheduleItems(artifact)[0]?.id ?? null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
   const [visibleMonth, setVisibleMonth] = useState<Date>(() => {
-    const seeded = buildScheduleItems(artifact)[0];
+    const seeded = getSeededScheduleItems(artifact)[0];
     return startOfMonth(parseDateInput(seeded?.date) || new Date());
   });
 
   useEffect(() => {
-    const nextItems = buildScheduleItems(artifact);
+    const nextItems = getSeededScheduleItems(artifact);
     setItems(nextItems);
     setSelectedId(nextItems[0]?.id ?? null);
     setVisibleMonth(startOfMonth(parseDateInput(nextItems[0]?.date) || new Date()));
   }, [seedKey, artifact]);
+
+  useEffect(() => {
+    updateWorkspaceContext((current) => ({
+      ...current,
+      planSchedule: {
+        title: scheduleKey,
+        items,
+        updatedAt: new Date().toISOString(),
+      },
+    }));
+  }, [items, scheduleKey]);
 
   const sortedItems = useMemo(
     () => [...items].sort((left, right) => `${left.date}-${left.start}`.localeCompare(`${right.date}-${right.start}`)),
@@ -87,6 +91,15 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
     setItems((current) => [...current, nextItem]);
     setSelectedId(nextItem.id);
     const parsed = parseDateInput(anchorDate);
+    if (parsed) {
+      setVisibleMonth(startOfMonth(parsed));
+    }
+  }
+
+  function moveItemToDate(itemId: string, nextDate: string) {
+    setItems((current) => current.map((item) => (item.id === itemId ? { ...item, date: nextDate } : item)));
+    setSelectedId(itemId);
+    const parsed = parseDateInput(nextDate);
     if (parsed) {
       setVisibleMonth(startOfMonth(parsed));
     }
@@ -195,6 +208,16 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
                         setSelectedId(dayItems[0].id);
                       }
                     }}
+                    onDragOver={(event) => {
+                      if (!draggingId) return;
+                      event.preventDefault();
+                    }}
+                    onDrop={(event) => {
+                      if (!draggingId) return;
+                      event.preventDefault();
+                      moveItemToDate(draggingId, day.isoDate);
+                      setDraggingId(null);
+                    }}
                     className={dayIsVisible
                       ? "min-h-[120px] rounded-[1.25rem] border border-slate-200 bg-white p-2 text-left hover:border-cyan-300 hover:bg-cyan-50/40"
                       : "min-h-[120px] rounded-[1.25rem] border border-slate-100 bg-slate-50/70 p-2 text-left text-slate-400"
@@ -208,11 +231,14 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
                       {dayItems.slice(0, 3).map((item) => (
                         <div
                           key={item.id}
+                          draggable
+                          onDragStart={() => setDraggingId(item.id)}
+                          onDragEnd={() => setDraggingId(null)}
                           className={item.status === "blocked"
-                            ? "truncate rounded-full bg-rose-100 px-2 py-1 text-[11px] font-medium text-rose-800"
+                            ? "truncate rounded-full bg-rose-100 px-2 py-1 text-[11px] font-medium text-rose-800 cursor-grab"
                             : item.status === "watch"
-                              ? "truncate rounded-full bg-amber-100 px-2 py-1 text-[11px] font-medium text-amber-800"
-                              : "truncate rounded-full bg-cyan-100 px-2 py-1 text-[11px] font-medium text-cyan-900"
+                              ? "truncate rounded-full bg-amber-100 px-2 py-1 text-[11px] font-medium text-amber-800 cursor-grab"
+                              : "truncate rounded-full bg-cyan-100 px-2 py-1 text-[11px] font-medium text-cyan-900 cursor-grab"
                           }
                         >
                           {item.start} {item.title}
@@ -233,6 +259,9 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
                   key={item.id}
                   type="button"
                   onClick={() => setSelectedId(item.id)}
+                  draggable
+                  onDragStart={() => setDraggingId(item.id)}
+                  onDragEnd={() => setDraggingId(null)}
                   className={selectedItem?.id === item.id
                     ? "w-full rounded-[1.25rem] border border-cyan-300 bg-cyan-50 px-4 py-3 text-left"
                     : "w-full rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-3 text-left hover:bg-white"
@@ -361,6 +390,7 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
 
           <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">AI notes</p>
+            <p className="mt-2 text-xs leading-5 text-slate-500">Drag blocks between days to reschedule them. All edits persist on this workspace.</p>
             <div className="mt-4 space-y-3">
               {artifact.criticalPath.slice(0, 3).map((item) => (
                 <div key={item} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">
@@ -591,4 +621,13 @@ function escapeIcs(value: string) {
 
 function slugify(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "workspace-schedule";
+}
+
+function getSeededScheduleItems(artifact: ExecutionArtifact) {
+  const stored = readWorkspaceContext().planSchedule;
+  if (stored?.title === slugify(artifact.title || "workspace-schedule") && stored.items.length) {
+    return stored.items;
+  }
+
+  return buildScheduleItems(artifact);
 }

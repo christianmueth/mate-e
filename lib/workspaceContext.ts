@@ -10,6 +10,7 @@ const MAX_MISCONCEPTIONS = 8;
 const MAX_RECENT_GUIDANCE = 4;
 const MAX_RECENT_TUTOR_INTERACTIONS = 6;
 const MAX_UPLOADED_ASSETS = 6;
+const MAX_PLAN_SCHEDULE_ITEMS = 48;
 
 export type WorkspaceUploadedAsset = {
   id: string;
@@ -17,6 +18,18 @@ export type WorkspaceUploadedAsset = {
   name: string;
   source: "whiteboard" | "presentation";
   updatedAt: string;
+};
+
+export type WorkspacePlanScheduleItem = {
+  id: string;
+  title: string;
+  date: string;
+  start: string;
+  end: string;
+  owner: string;
+  lane: "phase" | "milestone" | "task";
+  notes: string;
+  status: "ready" | "watch" | "blocked";
 };
 
 export type WorkspaceContext = {
@@ -69,6 +82,11 @@ export type WorkspaceContext = {
     outlineCount: number;
     updatedAt: string;
   } | null;
+  planSchedule: {
+    title: string | null;
+    items: WorkspacePlanScheduleItem[];
+    updatedAt: string;
+  } | null;
   uploadedAssets: WorkspaceUploadedAsset[];
   recentTutorInteractions: Array<{
     role: "user" | "assistant";
@@ -88,6 +106,7 @@ export function createEmptyWorkspaceContext(): WorkspaceContext {
     currentGuidedSession: null,
     whiteboardReference: null,
     presentationReference: null,
+    planSchedule: null,
     uploadedAssets: [],
     recentTutorInteractions: [],
   };
@@ -101,6 +120,7 @@ export function sanitizeWorkspaceContext(value: unknown): WorkspaceContext | nul
   const tutorMemory = asRecord(record.tutorMemory);
   const whiteboardReference = asRecord(record.whiteboardReference);
   const presentationReference = asRecord(record.presentationReference);
+  const planSchedule = asRecord(record.planSchedule);
 
   return {
     version: 1,
@@ -163,6 +183,13 @@ export function sanitizeWorkspaceContext(value: unknown): WorkspaceContext | nul
           updatedAt: toIsoString(presentationReference.updatedAt),
         }
       : null,
+    planSchedule: planSchedule
+      ? {
+          title: toStringValue(planSchedule.title, 180),
+          items: sanitizePlanScheduleItems(planSchedule.items),
+          updatedAt: toIsoString(planSchedule.updatedAt),
+        }
+      : null,
     uploadedAssets: sanitizeUploadedAssets(record.uploadedAssets),
     recentTutorInteractions: sanitizeTutorInteractions(record.recentTutorInteractions),
   };
@@ -220,6 +247,9 @@ export function summarizeWorkspaceContext(context: WorkspaceContext | null) {
     context.presentationReference?.title
       ? `presentation: ${context.presentationReference.title} (${context.presentationReference.outlineCount} slides)`
       : null,
+    context.planSchedule?.title
+      ? `schedule: ${context.planSchedule.title} (${context.planSchedule.items.length} blocks)`
+      : null,
     context.uploadedAssets.length ? `assets: ${context.uploadedAssets.slice(0, 3).map((asset) => asset.name).join(", ")}` : null,
     context.recentTutorInteractions.length
       ? `recent tutor turns: ${context.recentTutorInteractions.slice(-2).map((item) => `${item.role}: ${item.content}`).join(" | ")}`
@@ -271,6 +301,38 @@ function sanitizeTutorInteractions(value: unknown) {
     .slice(-MAX_RECENT_TUTOR_INTERACTIONS);
 }
 
+function sanitizePlanScheduleItems(value: unknown): WorkspacePlanScheduleItem[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => {
+      const record = asRecord(item);
+      if (!record) return null;
+      const id = toStringValue(record.id, 120);
+      const title = toStringValue(record.title, 180);
+      const date = toDateValue(record.date);
+      const start = toTimeValue(record.start);
+      const end = toTimeValue(record.end);
+      const owner = toStringValue(record.owner, 120) || "Owner";
+      const lane = record.lane === "phase" || record.lane === "milestone" || record.lane === "task" ? record.lane : null;
+      const notes = toStringValue(record.notes, 1000) || "";
+      const status = record.status === "ready" || record.status === "watch" || record.status === "blocked" ? record.status : null;
+      if (!id || !title || !date || !start || !end || !lane || !status) return null;
+      return {
+        id,
+        title,
+        date,
+        start,
+        end,
+        owner,
+        lane,
+        notes,
+        status,
+      } satisfies WorkspacePlanScheduleItem;
+    })
+    .filter((item): item is WorkspacePlanScheduleItem => Boolean(item))
+    .slice(0, MAX_PLAN_SCHEDULE_ITEMS);
+}
+
 function sanitizeQueuePosition(value: unknown) {
   const record = asRecord(value);
   if (!record) return null;
@@ -315,6 +377,16 @@ function toIsoString(value: unknown) {
   const date = new Date(candidate);
   if (Number.isNaN(date.getTime())) return new Date().toISOString();
   return date.toISOString();
+}
+
+function toDateValue(value: unknown) {
+  const text = typeof value === "string" ? value.trim() : "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
+}
+
+function toTimeValue(value: unknown) {
+  const text = typeof value === "string" ? value.trim() : "";
+  return /^\d{2}:\d{2}$/.test(text) ? text : null;
 }
 
 function toNumberOrNull(value: unknown) {
