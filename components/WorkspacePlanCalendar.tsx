@@ -176,6 +176,18 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
     () => Array.from({ length: TIMELINE_END_HOUR - TIMELINE_START_HOUR + 1 }, (_, index) => TIMELINE_START_HOUR + index),
     []
   );
+  const totalConflicts = useMemo(() => {
+    const grouped = new Map<string, ScheduleItem[]>();
+    for (const item of sortedItems) {
+      grouped.set(item.date, [...(grouped.get(item.date) || []), item]);
+    }
+    return [...grouped.values()].reduce((count, group) => count + getConflictCount(group), 0);
+  }, [sortedItems]);
+  const readyCount = sortedItems.filter((item) => item.status === "ready").length;
+  const watchCount = sortedItems.filter((item) => item.status === "watch").length;
+  const blockedCount = sortedItems.filter((item) => item.status === "blocked").length;
+  const totalScheduledHours = sortedItems.reduce((sum, item) => sum + Math.max(0, toMinutes(item.end) - toMinutes(item.start)), 0) / 60;
+  const selectedDateConflictCount = getConflictCount(dayItems);
 
   function updateItemById(itemId: string, patch: Partial<ScheduleItem>) {
     setItems((current) => current.map((item) => (item.id === itemId ? { ...item, ...patch } : item)));
@@ -265,180 +277,169 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
   }
 
   return (
-    <div className="space-y-4">
-      <div className="rounded-[2rem] border border-cyan-200 bg-gradient-to-br from-cyan-50 via-white to-sky-50 p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800">AI-augmented schedule</p>
-            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{artifact.title}</h2>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-700">{assistSummary}</p>
-            <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
-              <span className="rounded-full border border-cyan-200 bg-white/90 px-3 py-1">{artifact.metaLine}</span>
-              <span className="rounded-full border border-slate-200 bg-white/90 px-3 py-1">{artifact.signal}</span>
-              <span className="rounded-full border border-slate-200 bg-white/90 px-3 py-1">Editable calendar</span>
+    <div className="space-y-6 pb-32">
+      <div className="rounded-[2.5rem] border border-cyan-200 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.18),_transparent_34%),linear-gradient(135deg,_#f0fdfa_0%,_#ffffff_48%,_#ecfeff_100%)] p-6 shadow-sm lg:p-8">
+        <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="space-y-5">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cyan-800">AI-enhanced workflow</p>
+              <h2 className="mt-3 max-w-4xl text-3xl font-semibold tracking-tight text-slate-950 lg:text-[2.6rem]">{artifact.title}</h2>
+              <p className="mt-3 max-w-3xl text-base leading-7 text-slate-700">{assistSummary}</p>
+            </div>
+
+            <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+              <span className="rounded-full border border-cyan-200 bg-white/90 px-3 py-1.5">{artifact.metaLine}</span>
+              <span className="rounded-full border border-slate-200 bg-white/90 px-3 py-1.5">{artifact.signal}</span>
+              <span className="rounded-full border border-slate-200 bg-white/90 px-3 py-1.5">Calendar-first planning</span>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <MetricCard label="Scheduled blocks" value={`${sortedItems.length}`} detail="Everything in one editable plan" />
+              <MetricCard label="Focus load" value={`${formatNumber(totalScheduledHours)}h`} detail="Total scheduled work this cycle" />
+              <MetricCard label="Conflicts" value={`${totalConflicts}`} detail={totalConflicts > 0 ? "AI can rebalance overlaps" : "No active overlaps detected"} tone={totalConflicts > 0 ? "warning" : "default"} />
+              <MetricCard label="Blocked" value={`${blockedCount}`} detail={blockedCount > 0 ? "Resolve before compressing further" : "No blockers dominate the plan"} tone={blockedCount > 0 ? "danger" : "default"} />
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={addEvent} className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50">
-              Add block
-            </button>
-            <button type="button" onClick={downloadCalendar} className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50">
-              Download calendar
-            </button>
-            <button type="button" onClick={downloadReport} className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
-              Download report
-            </button>
+          <div className="rounded-[2rem] border border-slate-200 bg-white/90 p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">AI workflow</p>
+                <h3 className="mt-2 text-xl font-semibold text-slate-950">Simplify the plan into the next best move.</h3>
+              </div>
+              {entitlement ? (
+                <span className={entitlement.locked ? "rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800" : "rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-medium text-cyan-900"}>
+                  {entitlement.remaining === null ? "Unlimited AI assists" : `${entitlement.remaining} assists left`}
+                </span>
+              ) : null}
+            </div>
+
+            <div className="mt-4 grid gap-3">
+              <WorkflowActionCard
+                title="1. Optimize the week"
+                description="Spread work into a cleaner cadence with more realistic sequencing and protected focus time."
+                statusLabel="Best first pass"
+                loading={assistLoading === "optimize"}
+                disabled={assistLoading !== null || Boolean(entitlement?.locked)}
+                onClick={() => void runAssist("optimize")}
+              />
+              <WorkflowActionCard
+                title="2. Check for collisions"
+                description="Surface overlaps, dependency pressure, and overbooked days before execution gets messy."
+                statusLabel={totalConflicts > 0 ? `${totalConflicts} overlaps detected` : "Calendar looks clean"}
+                loading={assistLoading === "conflicts"}
+                disabled={assistLoading !== null || Boolean(entitlement?.locked)}
+                onClick={() => void runAssist("conflicts")}
+              />
+              <WorkflowActionCard
+                title="3. Compress the plan"
+                description="Tighten the schedule into fewer delivery days once the sequence already looks healthy."
+                statusLabel={blockedCount > 0 ? "Watch blockers first" : "Ready to condense"}
+                loading={assistLoading === "compress"}
+                disabled={assistLoading !== null || Boolean(entitlement?.locked)}
+                onClick={() => void runAssist("compress")}
+              />
+            </div>
+
+            {entitlement ? <p className={entitlement.locked ? "mt-4 text-sm text-amber-800" : "mt-4 text-sm text-slate-600"}>{entitlement.message}</p> : null}
           </div>
         </div>
-
-        <div className="mt-5 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => void runAssist("optimize")}
-            disabled={assistLoading !== null || Boolean(entitlement?.locked)}
-            className="rounded-full border border-cyan-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-cyan-50 disabled:opacity-60"
-          >
-            {assistLoading === "optimize" ? "Optimizing..." : "AI optimize week"}
-          </button>
-          <button
-            type="button"
-            onClick={() => void runAssist("conflicts")}
-            disabled={assistLoading !== null || Boolean(entitlement?.locked)}
-            className="rounded-full border border-cyan-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-cyan-50 disabled:opacity-60"
-          >
-            {assistLoading === "conflicts" ? "Checking..." : "AI find conflicts"}
-          </button>
-          <button
-            type="button"
-            onClick={() => void runAssist("compress")}
-            disabled={assistLoading !== null || Boolean(entitlement?.locked)}
-            className="rounded-full border border-cyan-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-cyan-50 disabled:opacity-60"
-          >
-            {assistLoading === "compress" ? "Compressing..." : "AI compress plan"}
-          </button>
-        </div>
-
-        {entitlement ? (
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-            <span className={entitlement.locked ? "rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-amber-800" : "rounded-full border border-cyan-200 bg-white px-3 py-1 text-slate-700"}>
-              {entitlement.remaining === null ? "Unlimited AI assists" : `${entitlement.remaining} schedule assists left today`}
-            </span>
-            <p className={entitlement.locked ? "text-amber-800" : "text-slate-600"}>{entitlement.message}</p>
-          </div>
-        ) : null}
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1.1fr_1fr_0.85fr]">
-        <div className="space-y-4">
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
+      <div className="grid gap-6 2xl:grid-cols-[1.35fr_0.9fr]">
+        <div className="space-y-6">
+          <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Calendar</p>
-                <h3 className="mt-2 text-xl font-semibold text-slate-950">{formatMonthLabel(visibleMonth)}</h3>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Planning board</p>
+                <h3 className="mt-2 text-2xl font-semibold text-slate-950">Spread the week before you tune each block.</h3>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">Use the month board to move work between days, then refine the selected day in the timeline below.</p>
               </div>
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={() => setVisibleMonth(addMonths(visibleMonth, -1))} className="rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Prev</button>
-                <button type="button" onClick={() => setVisibleMonth(addMonths(visibleMonth, 1))} className="rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50">Next</button>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => setVisibleMonth(addMonths(visibleMonth, -1))} className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Prev month</button>
+                <button type="button" onClick={() => setVisibleMonth(addMonths(visibleMonth, 1))} className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Next month</button>
               </div>
             </div>
 
-            <div className="mt-5 grid grid-cols-7 gap-2">
-              {WEEKDAY_LABELS.map((label) => (
-                <div key={label} className="px-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</div>
-              ))}
-              {monthCells.map((day) => {
-                const dayScheduleItems = sortedItems.filter((item) => item.date === day.isoDate);
-                const dayIsVisible = day.date.getMonth() === visibleMonth.getMonth();
-                const dayConflictCount = getConflictCount(dayScheduleItems);
-                return (
-                  <button
-                    key={day.isoDate}
-                    type="button"
-                    onClick={() => {
-                      setVisibleMonth(startOfMonth(day.date));
-                      if (dayScheduleItems[0]) setSelectedId(dayScheduleItems[0].id);
-                    }}
-                    onDragOver={(event) => {
-                      if (!draggingId) return;
-                      event.preventDefault();
-                    }}
-                    onDrop={(event) => {
-                      if (!draggingId) return;
-                      event.preventDefault();
-                      moveItemToDate(draggingId, day.isoDate);
-                      setDraggingId(null);
-                    }}
-                    className={dayIsVisible
-                      ? dayConflictCount > 0
-                        ? "min-h-[120px] rounded-[1.25rem] border border-rose-300 bg-rose-50/40 p-2 text-left hover:border-rose-400"
-                        : "min-h-[120px] rounded-[1.25rem] border border-slate-200 bg-white p-2 text-left hover:border-cyan-300 hover:bg-cyan-50/40"
-                      : "min-h-[120px] rounded-[1.25rem] border border-slate-100 bg-slate-50/70 p-2 text-left text-slate-400"
-                    }
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-semibold">{day.date.getDate()}</span>
-                      <div className="flex items-center gap-1">
-                        {dayConflictCount > 0 ? <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-rose-700">{dayConflictCount} conflict{dayConflictCount === 1 ? "" : "s"}</span> : null}
-                        {dayScheduleItems.length ? <span className="text-[11px] text-slate-500">{dayScheduleItems.length}</span> : null}
-                      </div>
-                    </div>
-                    <div className="mt-2 space-y-1">
-                      {dayScheduleItems.slice(0, 3).map((item) => (
-                        <div
-                          key={item.id}
-                          draggable
-                          onDragStart={() => setDraggingId(item.id)}
-                          onDragEnd={() => setDraggingId(null)}
-                          className={badgeClassName(item.status)}
-                        >
-                          {item.start} {item.title}
+            <div className="mt-5 rounded-[1.75rem] border border-slate-100 bg-slate-50/70 p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="text-lg font-semibold text-slate-950">{formatMonthLabel(visibleMonth)}</p>
+                <div className="flex flex-wrap gap-2 text-xs text-slate-500">
+                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1">Ready {readyCount}</span>
+                  <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-800">Watch {watchCount}</span>
+                  <span className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-rose-800">Blocked {blockedCount}</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-7 gap-2">
+                {WEEKDAY_LABELS.map((label) => (
+                  <div key={label} className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</div>
+                ))}
+                {monthCells.map((day) => {
+                  const dayScheduleItems = sortedItems.filter((item) => item.date === day.isoDate);
+                  const dayIsVisible = day.date.getMonth() === visibleMonth.getMonth();
+                  const dayConflictCount = getConflictCount(dayScheduleItems);
+                  return (
+                    <button
+                      key={day.isoDate}
+                      type="button"
+                      onClick={() => {
+                        setVisibleMonth(startOfMonth(day.date));
+                        if (dayScheduleItems[0]) setSelectedId(dayScheduleItems[0].id);
+                      }}
+                      onDragOver={(event) => {
+                        if (!draggingId) return;
+                        event.preventDefault();
+                      }}
+                      onDrop={(event) => {
+                        if (!draggingId) return;
+                        event.preventDefault();
+                        moveItemToDate(draggingId, day.isoDate);
+                        setDraggingId(null);
+                      }}
+                      className={dayIsVisible
+                        ? dayConflictCount > 0
+                          ? "min-h-[132px] rounded-[1.4rem] border border-rose-300 bg-rose-50/50 p-3 text-left hover:border-rose-400"
+                          : "min-h-[132px] rounded-[1.4rem] border border-slate-200 bg-white p-3 text-left hover:border-cyan-300 hover:bg-cyan-50/40"
+                        : "min-h-[132px] rounded-[1.4rem] border border-slate-100 bg-white/60 p-3 text-left text-slate-400"
+                      }
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-semibold">{day.date.getDate()}</span>
+                        <div className="flex items-center gap-1">
+                          {dayConflictCount > 0 ? <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-rose-700">{dayConflictCount} conflict{dayConflictCount === 1 ? "" : "s"}</span> : null}
+                          {dayScheduleItems.length ? <span className="text-[11px] text-slate-500">{dayScheduleItems.length}</span> : null}
                         </div>
-                      ))}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Agenda</p>
-            <div className="mt-4 space-y-3">
-              {sortedItems.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setSelectedId(item.id)}
-                  draggable
-                  onDragStart={() => setDraggingId(item.id)}
-                  onDragEnd={() => setDraggingId(null)}
-                  className={selectedItem?.id === item.id ? "w-full rounded-[1.25rem] border border-cyan-300 bg-cyan-50 px-4 py-3 text-left" : "w-full rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-3 text-left hover:bg-white"}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-950">{item.title}</p>
-                      <p className="mt-1 text-xs text-slate-600">{formatAgendaDate(item.date)} • {item.start}-{item.end}</p>
-                    </div>
-                    <span className="text-xs text-slate-500">{item.owner}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Day timeline</p>
-                <p className="mt-2 text-sm font-medium text-slate-900">{formatAgendaDate(selectedDate)}</p>
+                      </div>
+                      <div className="mt-3 space-y-1.5">
+                        {dayScheduleItems.slice(0, 3).map((item) => (
+                          <div key={item.id} draggable onDragStart={() => setDraggingId(item.id)} onDragEnd={() => setDraggingId(null)} className={badgeClassName(item.status)}>
+                            {item.start} {item.title}
+                          </div>
+                        ))}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-              <p className="text-xs text-slate-500">Drag blocks. Drag lower edge to resize.</p>
+            </div>
+          </div>
+
+          <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Day studio</p>
+                <h3 className="mt-2 text-2xl font-semibold text-slate-950">{formatAgendaDate(selectedDate)}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600">Drag a block to move it in time. Grab the bottom edge to resize. Select a block to edit details below.</p>
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+                <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">{dayItems.length} blocks</span>
+                <span className={selectedDateConflictCount > 0 ? "rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-rose-800" : "rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1.5 text-cyan-900"}>
+                  {selectedDateConflictCount > 0 ? `${selectedDateConflictCount} active overlaps` : "No overlaps on this day"}
+                </span>
+              </div>
             </div>
 
-            <div className="mt-4 rounded-[1.5rem] border border-slate-200 bg-slate-50 p-3">
+            <div className="mt-5 rounded-[1.75rem] border border-slate-200 bg-slate-50 p-4">
               <div className="relative" style={{ height: `${(TIMELINE_END_HOUR - TIMELINE_START_HOUR) * TIMELINE_HOUR_HEIGHT}px` }}>
                 {timelineHours.map((hour, index) => (
                   <div key={hour} className="absolute inset-x-0 border-t border-slate-200" style={{ top: `${index * TIMELINE_HOUR_HEIGHT}px` }}>
@@ -447,7 +448,7 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
                 ))}
                 {dayItems.map((item) => {
                   const top = ((toMinutes(item.start) - TIMELINE_START_HOUR * 60) / 60) * TIMELINE_HOUR_HEIGHT;
-                  const height = Math.max(28, ((toMinutes(item.end) - toMinutes(item.start)) / 60) * TIMELINE_HOUR_HEIGHT);
+                  const height = Math.max(36, ((toMinutes(item.end) - toMinutes(item.start)) / 60) * TIMELINE_HOUR_HEIGHT);
                   return (
                     <div
                       key={item.id}
@@ -467,6 +468,7 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
                     >
                       <p className="truncate text-xs font-semibold text-slate-950">{item.title}</p>
                       <p className="mt-1 text-[11px] text-slate-700">{item.start}-{item.end}</p>
+                      <p className="mt-1 truncate text-[11px] text-slate-600">{item.owner}</p>
                       <div
                         data-resize-handle="true"
                         className="absolute inset-x-2 bottom-1 h-2 cursor-ns-resize rounded-full bg-white/80"
@@ -488,21 +490,65 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
               </div>
             </div>
           </div>
+        </div>
 
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">AI guidance</p>
+        <div className="space-y-6">
+          <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">AI guidance</p>
+                <h3 className="mt-2 text-xl font-semibold text-slate-950">What the assistant wants to simplify next</h3>
+              </div>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">{assistInsights.length} signals</span>
+            </div>
             <div className="mt-4 space-y-3">
-              {assistInsights.map((item) => (
-                <div key={item} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">{item}</div>
+              {assistInsights.map((item, index) => (
+                <div key={item} className="rounded-[1.4rem] border border-slate-200 bg-slate-50 px-4 py-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-cyan-800">AI signal {index + 1}</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">{item}</p>
+                </div>
               ))}
             </div>
           </div>
-        </div>
 
-        <div className="space-y-4">
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Edit block</p>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Agenda rail</p>
+                <h3 className="mt-2 text-xl font-semibold text-slate-950">Every block, in sequence</h3>
+              </div>
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600">Drag between days</span>
+            </div>
+            <div className="mt-4 max-h-[30rem] space-y-3 overflow-y-auto pr-1">
+              {sortedItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setSelectedId(item.id)}
+                  draggable
+                  onDragStart={() => setDraggingId(item.id)}
+                  onDragEnd={() => setDraggingId(null)}
+                  className={selectedItem?.id === item.id ? "w-full rounded-[1.25rem] border border-cyan-300 bg-cyan-50 px-4 py-4 text-left" : "w-full rounded-[1.25rem] border border-slate-200 bg-slate-50 px-4 py-4 text-left hover:bg-white"}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-950">{item.title}</p>
+                      <p className="mt-1 text-xs text-slate-600">{formatAgendaDate(item.date)} • {item.start}-{item.end}</p>
+                    </div>
+                    <span className="text-xs text-slate-500">{item.owner}</span>
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-slate-500">{item.notes || "No notes yet."}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Edit block</p>
+                <h3 className="mt-2 text-xl font-semibold text-slate-950">Adjust the selected schedule item</h3>
+              </div>
               {selectedItem ? (
                 <button type="button" onClick={removeSelectedItem} className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100">Delete</button>
               ) : null}
@@ -512,32 +558,32 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
               <div className="mt-4 space-y-4">
                 <label className="block text-sm font-medium text-slate-800">
                   Title
-                  <input value={selectedItem.title} onChange={(event) => updateSelectedItem({ title: event.target.value })} className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900" />
+                  <input value={selectedItem.title} onChange={(event) => updateSelectedItem({ title: event.target.value })} className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-slate-900" />
                 </label>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="block text-sm font-medium text-slate-800">
                     Date
-                    <input type="date" value={selectedItem.date} onChange={(event) => updateSelectedItem({ date: event.target.value })} className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900" />
+                    <input type="date" value={selectedItem.date} onChange={(event) => updateSelectedItem({ date: event.target.value })} className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-slate-900" />
                   </label>
                   <label className="block text-sm font-medium text-slate-800">
                     Owner
-                    <input value={selectedItem.owner} onChange={(event) => updateSelectedItem({ owner: event.target.value })} className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900" />
+                    <input value={selectedItem.owner} onChange={(event) => updateSelectedItem({ owner: event.target.value })} className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-slate-900" />
                   </label>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="block text-sm font-medium text-slate-800">
                     Start
-                    <input type="time" value={selectedItem.start} onChange={(event) => updateSelectedItem({ start: event.target.value })} className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900" />
+                    <input type="time" value={selectedItem.start} onChange={(event) => updateSelectedItem({ start: event.target.value })} className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-slate-900" />
                   </label>
                   <label className="block text-sm font-medium text-slate-800">
                     End
-                    <input type="time" value={selectedItem.end} onChange={(event) => updateSelectedItem({ end: event.target.value })} className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900" />
+                    <input type="time" value={selectedItem.end} onChange={(event) => updateSelectedItem({ end: event.target.value })} className="mt-2 w-full rounded-2xl border border-slate-300 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-slate-900" />
                   </label>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="block text-sm font-medium text-slate-800">
                     Lane
-                    <select value={selectedItem.lane} onChange={(event) => updateSelectedItem({ lane: event.target.value as ScheduleItem["lane"] })} className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900">
+                    <select value={selectedItem.lane} onChange={(event) => updateSelectedItem({ lane: event.target.value as ScheduleItem["lane"] })} className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-slate-900">
                       <option value="phase">Phase</option>
                       <option value="milestone">Milestone</option>
                       <option value="task">Task</option>
@@ -545,7 +591,7 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
                   </label>
                   <label className="block text-sm font-medium text-slate-800">
                     Status
-                    <select value={selectedItem.status} onChange={(event) => updateSelectedItem({ status: event.target.value as ScheduleItem["status"] })} className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900">
+                    <select value={selectedItem.status} onChange={(event) => updateSelectedItem({ status: event.target.value as ScheduleItem["status"] })} className="mt-2 w-full rounded-2xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-slate-900">
                       <option value="ready">Ready</option>
                       <option value="watch">Watch</option>
                       <option value="blocked">Blocked</option>
@@ -554,7 +600,7 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
                 </div>
                 <label className="block text-sm font-medium text-slate-800">
                   Notes
-                  <textarea value={selectedItem.notes} onChange={(event) => updateSelectedItem({ notes: event.target.value })} className="mt-2 min-h-[120px] w-full rounded-2xl border border-slate-300 px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-900" />
+                  <textarea value={selectedItem.notes} onChange={(event) => updateSelectedItem({ notes: event.target.value })} className="mt-2 min-h-[140px] w-full rounded-2xl border border-slate-300 px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-slate-900" />
                 </label>
               </div>
             ) : (
@@ -563,7 +609,83 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
           </div>
         </div>
       </div>
+
+      <div className="sticky bottom-4 z-20">
+        <div className="rounded-[1.75rem] border border-slate-200 bg-white/95 p-4 shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Workflow dock</p>
+              <p className="mt-1 text-sm text-slate-700">{selectedItem ? `Selected: ${selectedItem.title} on ${formatAgendaDate(selectedItem.date)} at ${selectedItem.start}-${selectedItem.end}` : "Pick a block or create one to continue planning."}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={addEvent} className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50">Add block</button>
+              <button type="button" onClick={() => void runAssist("optimize")} disabled={assistLoading !== null || Boolean(entitlement?.locked)} className="rounded-full border border-cyan-300 bg-cyan-50 px-4 py-2 text-sm font-medium text-cyan-950 hover:bg-cyan-100 disabled:opacity-60">{assistLoading === "optimize" ? "Optimizing..." : "Optimize"}</button>
+              <button type="button" onClick={downloadCalendar} className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50">Export .ics</button>
+              <button type="button" onClick={downloadReport} className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">Export report</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  detail,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  detail: string;
+  tone?: "default" | "warning" | "danger";
+}) {
+  const className = tone === "danger"
+    ? "rounded-[1.5rem] border border-rose-200 bg-rose-50 px-4 py-4"
+    : tone === "warning"
+      ? "rounded-[1.5rem] border border-amber-200 bg-amber-50 px-4 py-4"
+      : "rounded-[1.5rem] border border-slate-200 bg-white px-4 py-4";
+
+  return (
+    <div className={className}>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+      <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
+      <p className="mt-1 text-sm leading-6 text-slate-600">{detail}</p>
+    </div>
+  );
+}
+
+function WorkflowActionCard({
+  title,
+  description,
+  statusLabel,
+  loading,
+  disabled,
+  onClick,
+}: {
+  title: string;
+  description: string;
+  statusLabel: string;
+  loading: boolean;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="w-full rounded-[1.4rem] border border-slate-200 bg-slate-50 px-4 py-4 text-left transition hover:border-cyan-300 hover:bg-cyan-50 disabled:opacity-60"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-semibold text-slate-950">{loading ? "Working..." : title}</p>
+          <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
+        </div>
+        <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium text-slate-600">{statusLabel}</span>
+      </div>
+    </button>
   );
 }
 
@@ -810,4 +932,8 @@ function getConflictCount(items: ScheduleItem[]) {
     }
   }
   return conflicts;
+}
+
+function formatNumber(value: number) {
+  return Number.isInteger(value) ? `${value}` : value.toFixed(1);
 }

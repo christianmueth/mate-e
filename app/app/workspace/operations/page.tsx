@@ -30,7 +30,7 @@ export default async function WorkspaceOperationsPage({
   };
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-8 p-6">
+    <div className="mx-auto flex max-w-[92rem] flex-col gap-8 p-6 pb-20 xl:px-8">
       <WorkspaceSectionNav currentPath="/app/workspace/operations" projectName={projectName} />
 
       <section className="rounded-[2rem] border border-cyan-200 bg-white p-7 shadow-sm">
