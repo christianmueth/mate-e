@@ -69,8 +69,6 @@ export default function TutorChatPanel() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [enabled, setEnabled] = useState(true);
-  const [open, setOpen] = useState(false);
-  const [bootstrapping, setBootstrapping] = useState(true);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [messages, setMessages] = useState<TutorChatMessage[]>([]);
@@ -92,12 +90,6 @@ export default function TutorChatPanel() {
     isDeckStudyRoute && sessionContext?.deckId === deckId && !sessionContext.sessionComplete
       ? sessionContext
       : null;
-  useEffect(() => {
-    const stored = window.localStorage.getItem(OPEN_STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_OPEN_STORAGE_KEY);
-    if (stored === "0") setOpen(false);
-    if (stored === "1") setOpen(true);
-  }, []);
-
   useEffect(() => {
     setEnabled(readTutorChatEnabled());
 
@@ -125,11 +117,6 @@ export default function TutorChatPanel() {
     window.addEventListener(WORKSPACE_CONTEXT_EVENT, syncWorkspaceState);
     return () => window.removeEventListener(WORKSPACE_CONTEXT_EVENT, syncWorkspaceState);
   }, []);
-
-  useEffect(() => {
-    window.localStorage.setItem(OPEN_STORAGE_KEY, open ? "1" : "0");
-    window.localStorage.setItem(LEGACY_OPEN_STORAGE_KEY, open ? "1" : "0");
-  }, [open]);
 
   useEffect(() => {
     function syncSessionContext(nextValue: unknown) {
@@ -177,7 +164,6 @@ export default function TutorChatPanel() {
       } finally {
         if (!cancelled) {
           setLoading(false);
-          setBootstrapping(false);
         }
       }
     }
@@ -259,7 +245,6 @@ export default function TutorChatPanel() {
       }
       setContext(data.context || null);
       setEntitlement(data.entitlement || null);
-      setOpen(true);
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, "We couldn't get workspace guidance right now."));
     } finally {
@@ -269,116 +254,38 @@ export default function TutorChatPanel() {
 
   return (
     <div className={isPlanRoute
-      ? "pointer-events-none fixed inset-x-4 bottom-4 z-40 flex justify-end sm:left-auto sm:right-5 sm:w-[18rem]"
-      : "pointer-events-none fixed inset-x-4 bottom-4 z-40 flex justify-end sm:left-auto sm:right-5 sm:w-[22rem]"
+      ? "pointer-events-none fixed inset-x-4 bottom-4 z-40 flex justify-end sm:left-auto sm:right-5 sm:w-[15rem]"
+      : "pointer-events-none fixed inset-x-4 bottom-4 z-40 flex justify-end sm:left-auto sm:right-5 sm:w-[16rem]"
     }>
-      <div className={open
-        ? "pointer-events-auto w-full overflow-hidden rounded-[1.5rem] border border-slate-200 bg-white/95 shadow-[0_16px_40px_rgba(15,23,42,0.14)] backdrop-blur"
-        : "pointer-events-auto"
-      }>
-        {open ? (
-          <div>
-            <div className={isPlanRoute ? "flex items-start justify-between gap-3 px-3 py-3" : "flex items-start justify-between gap-3 px-4 py-4"}>
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Next move</p>
-                <h2 className={isPlanRoute ? "mt-1 text-base font-semibold text-slate-950" : "mt-1 text-lg font-semibold text-slate-950"}>{recommendation.title}</h2>
-                {isPlanRoute ? null : <p className="mt-1 text-sm text-slate-600">{recommendation.subtitle}</p>}
-              </div>
-              <button
-                type="button"
-                className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                onClick={() => setOpen(false)}
-              >
-                {isPlanRoute ? "Minimize" : "Hide"}
-              </button>
-            </div>
+      <div className="pointer-events-auto w-full overflow-hidden rounded-[1.25rem] border border-slate-200 bg-white/95 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.12)] backdrop-blur">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Next move</p>
+        <p className="mt-2 text-sm font-semibold text-slate-950">{recommendation.nextAction}</p>
+        <p className="mt-2 text-xs leading-5 text-slate-600">{recommendation.currentGoal}</p>
 
-            <div className={isPlanRoute ? "space-y-3 border-t border-slate-100 p-3" : "space-y-3 border-t border-slate-100 p-4"}>
-              <div className={isPlanRoute ? "rounded-2xl border border-slate-200 bg-slate-50 p-3" : "rounded-2xl border border-slate-200 bg-slate-50 p-4"}>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Top priority</p>
-                <p className="mt-2 text-sm font-medium text-slate-950">{recommendation.currentGoal}</p>
-                {recommendation.confidence ? (
-                  <p className="mt-2 text-xs font-medium text-slate-600">Confidence: {recommendation.confidence}</p>
-                ) : null}
-              </div>
+        {entitlement ? (
+          <p className={entitlement.locked ? "mt-2 text-xs text-amber-800" : "mt-2 text-xs text-slate-500"}>{entitlement.message}</p>
+        ) : null}
 
-              <div className={isPlanRoute ? "rounded-2xl border border-slate-200 bg-white p-3" : "rounded-2xl border border-slate-200 bg-white p-4"}>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Suggested action</p>
-                <p className="mt-2 text-sm font-medium text-slate-950">{recommendation.nextAction}</p>
-                {isPlanRoute ? null : (
-                  <>
-                    <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Why</p>
-                    <p className="mt-2 text-sm leading-6 text-slate-700">{recommendation.risk}</p>
-                  </>
-                )}
-              </div>
+        <div className="mt-3 flex flex-col gap-2">
+          {recommendation.actions.slice(0, 1).map((action) => (
+            <button
+              key={action.label}
+              type="button"
+              className="rounded-full bg-slate-950 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
+              disabled={sending || Boolean(entitlement?.locked)}
+              onClick={() => void submitMessage(action.prompt)}
+            >
+              {sending ? "Working..." : action.label}
+            </button>
+          ))}
 
-              <div className="grid gap-2">
-                {recommendation.actions.slice(0, 1).map((action) => (
-                  <button
-                    key={action.label}
-                    type="button"
-                    className="rounded-full bg-slate-950 px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
-                    disabled={sending || Boolean(entitlement?.locked)}
-                    onClick={() => void submitMessage(action.prompt)}
-                  >
-                    {sending ? "Working..." : action.label}
-                  </button>
-                ))}
-              </div>
-
-              {entitlement ? (
-                <div className={entitlement.locked
-                  ? "rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950"
-                  : "rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
-                }>
-                  <p>{entitlement.message}</p>
-                </div>
-              ) : null}
-
-              <div className={isPlanRoute ? "rounded-2xl border border-slate-200 bg-white p-3" : "rounded-2xl border border-slate-200 bg-white p-4"}>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Why now</p>
-                <p className="mt-2 text-sm leading-6 text-slate-700">{recommendation.risk}</p>
-                <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Last active</p>
-                <p className="mt-2 text-sm leading-6 text-slate-700">{recommendation.lastUpdated}</p>
-              </div>
-
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs text-slate-500">{recommendation.modeLabel}</p>
-                <Link
-                  href="/app/workspace"
-                  className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                >
-                  Open Do page
-                </Link>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <button
-            type="button"
-            className={isPlanRoute
-              ? "w-auto max-w-[14rem] rounded-full border border-slate-200 bg-white/95 px-4 py-2.5 text-left shadow-[0_10px_24px_rgba(15,23,42,0.12)] hover:bg-white"
-              : "w-[15.75rem] rounded-[1.35rem] border border-slate-200 bg-white/95 p-4 text-left shadow-[0_10px_24px_rgba(15,23,42,0.12)] hover:bg-white"
-            }
-            onClick={() => setOpen(true)}
+          <Link
+            href="/app/workspace"
+            className="rounded-full border border-slate-200 bg-white px-3 py-2 text-center text-xs font-medium text-slate-700 hover:bg-slate-50"
           >
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Next move</p>
-            {isPlanRoute ? (
-              <div className="mt-1 flex items-center gap-2">
-                <p className="text-sm font-semibold text-slate-950">Plan help</p>
-                <p className="text-xs text-slate-500">Open</p>
-              </div>
-            ) : (
-              <>
-                <p className="mt-2 text-xs font-medium uppercase tracking-[0.16em] text-slate-500">Open</p>
-                <p className="mt-2 text-sm font-semibold text-slate-950">{recommendation.nextAction}</p>
-                <p className="mt-2 text-xs text-slate-600">{recommendation.currentGoal}</p>
-                <p className="mt-3 text-xs font-medium text-slate-700">Expand</p>
-              </>
-            )}
-          </button>
-        )}
+            Open Do page
+          </Link>
+        </div>
       </div>
     </div>
   );
