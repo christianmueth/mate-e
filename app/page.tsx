@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import HomeClerkAuthControls from "@/components/HomeClerkAuthControls";
 
@@ -12,9 +13,17 @@ export default async function Home({
 
   return (
     <main className="flex min-h-[calc(100vh-64px)] items-center justify-center bg-[radial-gradient(circle_at_top,rgba(45,212,191,0.12),transparent_42%),linear-gradient(180deg,#f7fffd_0%,#ffffff_100%)] px-6 py-10">
-      <section className="mx-auto flex w-full max-w-3xl flex-col items-center gap-6 rounded-[2.5rem] border border-teal-100 bg-white/88 p-8 text-center shadow-[0_24px_80px_rgba(15,118,110,0.10)] backdrop-blur sm:p-12">
+      <section className="mx-auto flex w-full max-w-3xl flex-col items-center gap-5 rounded-[2.5rem] border border-teal-100 bg-white/88 p-8 text-center shadow-[0_24px_80px_rgba(15,118,110,0.10)] backdrop-blur sm:p-12">
+        <Image
+          src="/logo.png"
+          alt="Mate-E logo"
+          width={176}
+          height={176}
+          className="h-32 w-32 sm:h-44 sm:w-44"
+          priority
+        />
         <p className="text-sm font-medium tracking-[0.08em] text-slate-500">Ahoy, I'm Mate-E</p>
-        <div className="space-y-4">
+        <div className="space-y-3">
           <h1 className="text-4xl font-semibold tracking-tight text-teal-950 sm:text-6xl">
             I help you move things forward.
           </h1>
