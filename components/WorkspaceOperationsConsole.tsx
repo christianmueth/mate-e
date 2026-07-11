@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import WorkspacePlanCalendar from "@/components/WorkspacePlanCalendar";
 
 type BuilderId = "execution-plan" | "sprint-builder" | "risk-scan" | "task-extractor";
 type FeedTone = "risk" | "attention" | "stable";
@@ -451,39 +452,7 @@ function BuilderSurface({ artifact, compact = false }: { artifact: Exclude<Build
 
 function ExecutionPlanSurface({ artifact, compact = false }: { artifact: ExecutionArtifact; compact?: boolean }) {
   if (compact) {
-    const primaryNextStep = artifact.milestones[0] || artifact.signal;
-
-    return (
-      <div className="space-y-4">
-        <div className="rounded-[2rem] border border-cyan-200 bg-gradient-to-br from-cyan-50 via-white to-sky-50 p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800">Project</p>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{artifact.title}</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-700">{artifact.summary}</p>
-          <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
-            <span className="rounded-full border border-cyan-200 bg-white/90 px-3 py-1">{artifact.metaLine}</span>
-            <span className="rounded-full border border-slate-200 bg-white/90 px-3 py-1">{artifact.signal}</span>
-          </div>
-        </div>
-
-        <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Next actions</p>
-          <div className="mt-4 space-y-3">
-            {artifact.criticalPath.map((item) => (
-              <div key={item} className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700">
-                {item}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Next step</p>
-          <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-700">
-            {primaryNextStep}
-          </div>
-        </div>
-      </div>
-    );
+    return <WorkspacePlanCalendar artifact={artifact} />;
   }
 
   return (
@@ -826,6 +795,12 @@ function buildCompactExecutionArtifact(state: BuildState): ExecutionArtifact {
   const deliverables = tokenize(state.deliverables);
   const constraints = tokenize(state.constraints);
   const sourceTasks = extractTaskLines(state.sourceMaterial);
+  const phases = [
+    { title: "Scope", owner: owners[0] || "Owner", window: "Start", status: "ready" as const, blockers: constraints.slice(0, 1) },
+    { title: "Prepare", owner: owners[1] || owners[0] || "Team", window: "Midweek", status: constraints[0] ? "watch" as const : "ready" as const, blockers: constraints.slice(0, 2) },
+    { title: "Execute", owner: owners[2] || owners[0] || "Team", window: "Delivery", status: constraints[1] ? "blocked" as const : "watch" as const, blockers: constraints.slice(1, 3) },
+    { title: "Review", owner: owners[3] || owners[0] || "Team", window: deadline || "Close", status: "watch" as const, blockers: constraints.slice(0, 1) },
+  ];
   const nextActions = [
     sourceTasks[0],
     deliverables[0] ? `Finish ${deliverables[0]}` : "Define what done looks like",
@@ -845,7 +820,7 @@ function buildCompactExecutionArtifact(state: BuildState): ExecutionArtifact {
     signal: constraints[0] ? `Watch ${constraints[0]}` : deadline ? `Due ${deadline}` : "Ready to move",
     ready: true,
     primaryCta: "Refine project in workspace chat",
-    phases: [],
+    phases,
     milestones: upcoming,
     criticalPath: nextActions,
     feed: [
