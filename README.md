@@ -1,160 +1,212 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Mate-E
 
-## Product Architecture
+Mate-E is an AI workspace and adaptive learning app built with Next.js, Clerk, Prisma, and Postgres. It combines flashcard generation, guided tutoring, workspace continuity, whiteboard assistance, presentation planning, and operator-facing governance reports in one product.
 
-Mate-E is a reasoning-time search/planning system, not a single-pass chatbot wrapper.
+## What the project does
 
-Product positioning: Mate-E is a replay-governed adaptive tutoring platform. It uses LLMs for tutoring, persistent student-state modeling for personalization, and MuZero/LightZero-inspired replay and value evaluation to improve tutoring decisions under strict governance.
+- Turns source material into study assets such as flashcards.
+- Tracks user progress, recovery patterns, and tutoring state over time.
+- Provides workspace-native AI help for planning, whiteboarding, and presentation prep.
+- Records reasoning and governance artifacts so adaptive behavior can be reviewed before it is trusted more broadly.
 
-Current production truth: tutoring uses a bounded heuristic world model by default, plus a Muon-style helper loop and replay-governed reranking. A LightZero-trained world model can now be loaded into the live scorer through `TUTORING_LIGHTZERO_ARTIFACT_PATH`, but LightZero is not in the serving path unless that artifact is explicitly configured.
+## How GPT-5.6 and Codex accelerated the build
 
-Avoid claiming that the product is already a full autonomous MuZero agent. The correct claim is that the product uses MuZero-style principles such as policy priors, candidate actions, value estimation, replay, and governed rollout evaluation.
+Judges should read this section first: GPT-5.6 and Codex were used as implementation accelerators across product design, coding, debugging, and documentation, but the project scope and acceptance decisions stayed human-controlled.
 
-The implementation contract for that architecture lives in `docs/REASONING_ENGINE_ARCHITECTURE.md`.
+Where they had the biggest impact:
 
-The student-facing product roadmap and bounded feature rollout plan live in `docs/PRODUCT_FEATURE_MAP.md`.
+- Accelerated first-pass implementation of API routes, UI wiring, and typed data contracts across flashcards, tutoring, whiteboard assistance, and presentation planning.
+- Shortened debugging cycles by helping trace failures across request handlers, environment configuration, and integration boundaries.
+- Helped generate and refine local smoke tests so the highest-risk AI workflows could be validated quickly without repeating full manual UI passes.
+- Compressed documentation and operations work by drafting setup steps, test commands, and governance-oriented explanations directly from the codebase.
 
-The visual companion to that roadmap lives in `docs/VISUAL_PRODUCT_ARCHITECTURE_MAP.md`.
+Key human decisions:
 
-Two repo rules follow from that contract:
+- The product was intentionally structured around bounded feature surfaces instead of an unconstrained chatbot.
+- Adaptive behavior was kept reviewable through reasoning logs, shadow evaluation, and governance reports before expanding authority.
+- Authentication, billing, database state, and operator-only controls were treated as product infrastructure rather than demo scaffolding.
 
-- App and frontend code only interact with stable product APIs and shared contracts.
-- Research code, training artifacts, notebooks, and dormant experiments are not product dependencies.
+How the tools were used:
 
-Adaptive capability changes are also governed by an explicit review and rollout doctrine. Contributors should read `CONTRIBUTING.md` and `docs/ADAPTIVE_CHANGE_REVIEW.md` before changing adaptive behavior or authority.
+- GPT-5.6 was used for reasoning through implementation choices, proposing architecture tradeoffs, drafting code paths, and surfacing edge cases.
+- Codex was used for repo-aware code editing, iterative refactoring, targeted fixes, and fast patch generation inside the working project.
 
-Real adaptive shadow telemetry exports are operationalized in `docs/SHADOW_EXPORT_WORKFLOW.md`.
+The practical result was faster iteration on a larger, more integrated product surface while preserving explicit human review over the final design and shipped behavior.
 
-Recurring post-launch replay, shadow, drift, and recovery monitoring is defined in `docs/OPERATIONAL_REVIEW_CADENCE.md`.
+## Stack
 
-Pre-launch deployment verification is defined in `docs/GO_LIVE_CHECKLIST.md`.
+- Next.js 15 App Router
+- React 19
+- TypeScript
+- Prisma with PostgreSQL
+- Clerk authentication
+- Stripe billing
+- OpenAI and external AI/transcript services for content generation and assistance
+- Capacitor for Android packaging
 
-The executable weekly governance bundle can be generated with `npm run reasoning:report:weekly`.
+## Local setup
 
-## Deployment Posture
+### 1. Install dependencies
 
-The current production posture is:
+```bash
+npm install
+```
 
-- `TUTORING_ADAPTIVE_RERANK_SHADOW=1`
-- `TUTORING_ADAPTIVE_RERANK_ENABLED=0`
-- `TUTORING_LIGHTZERO_ARTIFACT_PATH=<optional path to offline-trained LightZero world-model artifact JSON>`
-- `INTERNAL_OPERATOR_CLERK_USER_IDS=<comma-separated Clerk user ids for replay/governance access>`
+### 2. Create environment variables
 
-That means the website ships as a complete tutoring product with live adaptive shadow scoring, while heuristic tutoring remains authoritative until replay evidence justifies a bounded trial.
+Create `.env.local` in the repo root.
 
-The replay console and governance APIs are intended to remain internal-only. In production, operator access is restricted by `INTERNAL_OPERATOR_CLERK_USER_IDS`.
+Minimum variables for a useful local run:
 
-Deployable product features now include:
+```env
+DATABASE_URL=postgresql://...
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=...
+CLERK_SECRET_KEY=...
+OPENAI_API_KEY=...
+FLASHCARDS_TEST_KEY=localtest
+```
 
-- AI tutoring and hints
-- student-state memory
-- misconception tracking
-- recovery tracking
-- replay analytics
-- adaptive shadow scoring
-- readiness dashboard
-- exportable shadow datasets
+Optional variables used by specific features:
 
-Full MCTS or autonomous planner authority is intentionally not yet authoritative in the live product.
+```env
+SUPADATA_API_KEY=...
+RUNPOD_API_KEY=...
+RUNPOD_ENDPOINT=...
+RUNPOD_ASR_ENDPOINT=...
+RUNPOD_YOUTUBE_ENDPOINT=...
+STRIPE_SECRET_KEY=...
+STRIPE_WEBHOOK_SECRET=...
+STRIPE_PREMIUM_PRICE_ID=...
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+INTERNAL_OPERATOR_CLERK_USER_IDS=user_123,user_456
+TUTORING_ADAPTIVE_RERANK_SHADOW=1
+TUTORING_ADAPTIVE_RERANK_ENABLED=0
+```
 
-## Stripe Billing
+Notes:
 
-Mate-E now includes a Premium-only Stripe billing flow with:
+- The app shell can boot without Clerk, but signed-in workspace flows require valid Clerk keys.
+- Flashcards, tutoring, whiteboard assist, and presentation planning rely on AI credentials.
+- Stripe variables are only needed if you want to exercise billing locally.
 
-- Checkout route: `/api/billing/checkout`
-- Billing portal route: `/api/billing/portal`
-- Webhook route: `/api/webhooks/stripe`
-- Account page: `/app/billing`
-
-Required production environment variables:
-
-- `STRIPE_SECRET_KEY`
-- `STRIPE_WEBHOOK_SECRET`
-- `STRIPE_PREMIUM_PRICE_ID`
-- `NEXT_PUBLIC_APP_URL`
-
-After pulling the billing changes, run:
+### 3. Set up the database
 
 ```bash
 npx prisma migrate deploy
 npx prisma generate
 ```
 
-Configure the Stripe webhook endpoint to send these events to `/api/webhooks/stripe`:
+If you are iterating on schema changes locally, `npx prisma migrate dev` is also fine.
 
-- `checkout.session.completed`
-- `customer.subscription.created`
-- `customer.subscription.updated`
-- `customer.subscription.deleted`
-- `invoice.payment_succeeded`
-- `invoice.payment_failed`
-
-## Getting Started
-
-First, run the development server:
-
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-## Flashcards Local Smoketest
-
-Run this to verify RunPod output is parseable (bypasses auth using `FLASHCARDS_TEST_KEY`).
-
-1) Terminal A:
+### 4. Start the app
 
 ```bash
 npm run dev
 ```
 
-2) Terminal B:
+Open `http://localhost:3000`.
+
+## Sample data and test inputs
+
+The repo already includes lightweight test assets you can use during demos and local validation:
+
+- `sample-photosynthesis.srt`
+- `sample-subtitle.srt`
+- `site_content.html`
+
+These are useful as copy/paste source material for flashcard generation and workspace flows.
+
+For database-backed adaptive testing, the repo also includes a synthetic recovery seed script:
 
 ```bash
-set FLASHCARDS_TEST_KEY=localtest
-npm run flashcards:smoketest -- --text "Water expands when it freezes..."
+npm run reasoning:seed:synthetic-recovery -- --count 120 --seed 7 --reset
 ```
 
-PowerShell equivalent:
+That script inserts synthetic `study_recovery` reasoning runs so the governance and recovery views have realistic data to inspect.
+
+## How to run the main flows
+
+### App development
+
+```bash
+npm run dev
+```
+
+### Production build check
+
+```bash
+npm run build
+```
+
+### Flashcards smoke test
+
+Start the dev server, then run:
 
 ```powershell
 $env:FLASHCARDS_TEST_KEY = "localtest"
-npm run flashcards:smoketest -- --text "Water expands when it freezes..."
+npm run flashcards:smoketest -- --text "Photosynthesis converts light energy into chemical energy."
 ```
 
-To test a deployed endpoint (including YouTube URL → transcript → flashcards):
+You can also test URL ingestion or file upload:
 
 ```powershell
 $env:FLASHCARDS_TEST_KEY = "localtest"
-npm run flashcards:smoketest -- --base "https://YOUR_DEPLOYED_DOMAIN" --url "https://www.youtube.com/watch?v=VIDEO_ID" --cards 10
+npm run flashcards:smoketest -- --url "https://www.youtube.com/watch?v=VIDEO_ID" --cards 10
 ```
 
-Confirm the response shows `origin="youtube"` and includes `timings` like `supadata_ms`, `llm_flashcards_ms`, and `total_ms`.
+```powershell
+$env:FLASHCARDS_TEST_KEY = "localtest"
+npm run flashcards:smoketest -- --file "tmp/pptx-smoketest.pptx"
+```
 
-If the AI endpoint is misbehaving, the response will include an error code like `AI_NO_FLASHCARDS`.
+Create the PPTX fixture first if needed:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run pptx:fixture
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Workspace whiteboard assist smoke test
 
-## Learn More
+```powershell
+$env:FLASHCARDS_TEST_KEY = "localtest"
+npm run workspace:whiteboard:smoketest
+```
 
-To learn more about Next.js, take a look at the following resources:
+### Workspace presentation planner smoke test
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```powershell
+$env:FLASHCARDS_TEST_KEY = "localtest"
+npm run workspace:presentation:smoketest
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Governance report generation
 
-## Deploy on Vercel
+```bash
+npm run reasoning:report:weekly
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+This writes a dated bundle under `governance_reports/` with exports, summaries, and rollout decision artifacts.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Key implementation decisions
+
+- The app is organized around bounded product surfaces instead of a general-purpose chatbot. Each major experience has a dedicated route or API contract.
+- Authentication, billing, and student/workspace state are first-class product infrastructure, not demo-only add-ons.
+- Adaptive behavior is observable and reviewable through reasoning runs, shadow exports, and governance reports before authority expands.
+- Local smoketests exist for the highest-risk AI flows so the team can validate contracts without clicking through the UI every time.
+
+## Useful repo entry points
+
+- `app/page.tsx` for the landing experience
+- `app/app/workspace/page.tsx` for the signed-in workspace surface
+- `app/api/flashcards/route.ts` for source-to-flashcards generation
+- `app/api/tutoring/guide/route.ts` for guided tutoring behavior
+- `app/api/workspace/whiteboard-image/route.ts` and related workspace routes for workspace assistance
+- `prisma/schema.prisma` for the data model
+- `docs/REASONING_ENGINE_ARCHITECTURE.md` for the deeper reasoning-system contract
+
+## Deployment notes
+
+- Run `npm run build` before deployment.
+- Apply Prisma migrations in the target environment.
+- Configure Clerk, database, AI, and Stripe environment variables before exercising protected or premium flows.
+- Keep operator-only governance access restricted through `INTERNAL_OPERATOR_CLERK_USER_IDS`.
