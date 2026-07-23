@@ -28,10 +28,10 @@ Pass only if `INTERNAL_OPERATOR_CLERK_USER_IDS` contains the real Clerk operator
 
 Reconfirm the seeded QA accounts exist and are accessible:
 
-- `newstudent@test.quickstude`
-- `recoveringstudent@test.quickstude`
-- `strongstudent@test.quickstude`
-- `operator@test.quickstude`
+- `newstudent@mate-e.test`
+- `recoveringstudent@mate-e.test`
+- `strongstudent@mate-e.test`
+- `operator@mate-e.test`
 
 Pass only if:
 
@@ -58,7 +58,7 @@ Verify:
 Then sign in as:
 
 ```text
-recoveringstudent@test.quickstude
+recoveringstudent@mate-e.test
 ```
 
 Verify:

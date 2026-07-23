@@ -1,6 +1,6 @@
 # Contributing
 
-QuickStud-E accepts product and research-adjacent changes, but adaptive behavior in the product stack is governed by a stricter doctrine than ordinary feature work.
+Mate-E accepts product, platform, and research-adjacent changes, but adaptive behavior in the product stack is governed by a stricter doctrine than ordinary feature work.
 
 ## Adaptive Systems Doctrine
 
@@ -38,3 +38,5 @@ Before opening a PR for an adaptive change:
 4. Document replay, telemetry, and rollback implications in the PR.
 
 If those conditions are not met, the change should remain shadow-only or offline-only.
+
+For non-adaptive product changes, prefer small PRs with clear scope, explicit validation notes, and minimal unrelated cleanup.

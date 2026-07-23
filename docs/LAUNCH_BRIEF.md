@@ -48,26 +48,26 @@ Current auth posture includes:
 
 ### New student
 
-- email: `newstudent@test.quickstude`
+- email: `newstudent@mate-e.test`
 - purpose: onboarding, empty-state UX, first-session flow
 - expected state: one study set, minimal history, little or no recovery data, little or no tutor memory
 
 ### Recovering student
 
-- email: `recoveringstudent@test.quickstude`
+- email: `recoveringstudent@mate-e.test`
 - purpose: primary demo and QA account
 - expected state: visible weak concepts, misconception patterns, recovery events, recommendation traces, tutor memory moments, and prior session summaries
 - use this account first for any post-deploy smoke pass because it exercises the visible adaptive features that differentiate the product
 
 ### Strong student
 
-- email: `strongstudent@test.quickstude`
+- email: `strongstudent@mate-e.test`
 - purpose: pacing and retention validation
 - expected state: mostly stabilized concepts, limited weak areas, light guidance and maintenance-oriented recommendations
 
 ### Operator
 
-- email: `operator@test.quickstude`
+- email: `operator@mate-e.test`
 - purpose: replay and governance validation
 - required config: must be present in `INTERNAL_OPERATOR_CLERK_USER_IDS`
 

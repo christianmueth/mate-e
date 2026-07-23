@@ -82,9 +82,26 @@ export async function POST() {
     return NextResponse.json(
       {
         ok: false,
-        error: error instanceof Error ? error.message : "Unable to start checkout.",
+        error: getBillingCheckoutErrorMessage(error),
       },
       { status: 500 }
     );
   }
+}
+
+function getBillingCheckoutErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+  const param = typeof (error as { param?: unknown } | null)?.param === "string"
+    ? String((error as { param?: string }).param)
+    : "";
+
+  if (
+    param === "line_items[0][price]"
+    || /price specified is inactive/i.test(message)
+    || /only accepts active prices/i.test(message)
+  ) {
+    return "Stripe checkout is configured with an inactive price. Update STRIPE_PREMIUM_PRICE_ID in production to an active recurring Stripe price.";
+  }
+
+  return message || "Unable to start checkout.";
 }

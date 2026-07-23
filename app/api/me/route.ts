@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { hasPremiumAccess } from "@/lib/billing";
 import { prisma } from "@/lib/db";
+import { fromStoredPlan } from "@/lib/billing";
 
 export async function GET() {
   try {
@@ -24,7 +25,8 @@ export async function GET() {
     }
 
     const stripeCurrentPeriodEnd = user?.stripeCurrentPeriodEnd ? new Date(user.stripeCurrentPeriodEnd) : null;
-    const premiumActive = user?.plan === "premium" || hasPremiumAccess(user?.stripeSubscriptionStatus, stripeCurrentPeriodEnd);
+    const normalizedPlan = fromStoredPlan(user?.plan);
+    const premiumActive = normalizedPlan === "premium" || hasPremiumAccess(user?.stripeSubscriptionStatus, stripeCurrentPeriodEnd);
 
     return NextResponse.json({
       ok: true,
@@ -33,7 +35,7 @@ export async function GET() {
       streak: user?.studyStreak ?? 0,
       xpToday,
       dailyGoal: goal,
-      plan: user?.plan ?? "free",
+      plan: normalizedPlan,
       premiumActive,
       billingStatus: user?.stripeSubscriptionStatus ?? null,
     });

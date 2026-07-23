@@ -1,0 +1,8 @@
+List of Mate-E external apps:
+have a Clerk application to handle users
+have a Squarespace application to manage domains and certain keys
+have a GitHub repository to hold the open-source codebase
+use Vercel to handle the production pipeline and host the website online; there is also a blob connection for larger processing flows
+I pay OpenAI for certain features, and there is an OpenAI API key as well
+I use Neon for the SQL database to store data
+use Google for Google OAuth

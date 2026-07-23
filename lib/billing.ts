@@ -2,9 +2,18 @@ import type Stripe from "stripe";
 import { prisma } from "@/lib/db";
 
 export type AppPlan = "free" | "premium";
+export type StoredPlan = "FREE" | "PREMIUM";
 
 const PREMIUM_STATUSES = new Set(["active", "trialing", "past_due"]);
 const BLOCKED_STATUSES = new Set(["canceled", "incomplete_expired", "unpaid"]);
+
+export function toStoredPlan(plan: AppPlan): StoredPlan {
+  return plan === "premium" ? "PREMIUM" : "FREE";
+}
+
+export function fromStoredPlan(plan: unknown): AppPlan {
+  return String(plan || "").toUpperCase() === "PREMIUM" ? "premium" : "free";
+}
 
 export function stripeTimestampToDate(timestamp: number | null | undefined) {
   if (!timestamp) {
@@ -67,7 +76,7 @@ export function subscriptionToUserFields(subscription: Stripe.Subscription) {
   const stripeSubscriptionStatus = subscription.status;
 
   return {
-    plan: derivePlan(stripeSubscriptionStatus, currentPeriodEnd),
+    plan: toStoredPlan(derivePlan(stripeSubscriptionStatus, currentPeriodEnd)),
     stripeCustomerId: getStripeCustomerId(subscription.customer),
     stripeSubscriptionId: subscription.id,
     stripePriceId: subscription.items.data[0]?.price?.id ?? null,
@@ -89,7 +98,7 @@ export async function syncUserBillingState(args: {
   const data = args.subscription
     ? subscriptionToUserFields(args.subscription)
     : {
-        plan: "free" as const,
+        plan: "FREE" as const,
         stripeCustomerId: customerId ?? undefined,
         stripeSubscriptionId: args.subscriptionId ?? null,
         stripePriceId: null,

@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import BillingActions from "@/components/BillingActions";
 import { hasPremiumAccess } from "@/lib/billing";
 import { getUserBillingState } from "@/lib/db";
-import { isStripeBillingConfigured } from "@/lib/stripe";
+import { isStripeCheckoutConfigured } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
 
@@ -16,15 +16,28 @@ export default async function BillingPage({
 }: {
   searchParams: BillingPageSearchParams;
 }) {
-  const { userId: clerkUserId } = await auth();
+  const authResult = await auth().catch(() => null);
+  const clerkUserId = authResult?.userId ?? null;
   if (!clerkUserId) {
     redirect(`/?next=${encodeURIComponent("/app/billing")}`);
   }
 
   const resolvedSearchParams = await searchParams;
   const checkoutState = pickSearchParam(resolvedSearchParams.checkout);
-  const billingState = await getUserBillingState(clerkUserId);
-  const billingConfigured = isStripeBillingConfigured();
+  const billingState = await getUserBillingState(clerkUserId).catch((error) => {
+    console.error("[BillingPage] Failed to load billing state:", error);
+    return {
+      userId: null,
+      plan: null,
+      stripeCustomerId: null,
+      stripeSubscriptionStatus: null,
+      stripeCurrentPeriodEnd: null,
+      billingColumnsReady: false,
+      detail: "Billing state is temporarily unavailable.",
+    };
+  });
+  const checkoutConfigured = isStripeCheckoutConfigured();
+  const portalConfigured = Boolean(String(process.env.STRIPE_SECRET_KEY || "").trim());
 
   const isPremium = billingState.plan === "premium" || hasPremiumAccess(billingState.stripeSubscriptionStatus, billingState.stripeCurrentPeriodEnd);
   const banner = buildBanner(checkoutState, isPremium);
@@ -74,9 +87,10 @@ export default async function BillingPage({
 
           <div className="mt-6">
             <BillingActions
-              configured={billingConfigured && billingReady}
+              checkoutConfigured={checkoutConfigured && billingReady}
+              portalConfigured={portalConfigured && billingReady}
               isPremium={isPremium}
-                hasCustomer={Boolean(billingState.stripeCustomerId)}
+              hasCustomer={Boolean(billingState.stripeCustomerId)}
             />
           </div>
         </article>

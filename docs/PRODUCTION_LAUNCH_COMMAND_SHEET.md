@@ -90,11 +90,11 @@ Pass only if:
 
 Verify these personas exist:
 
-- `newstudent@test.quickstude`
-- `recoveringstudent@test.quickstude`
-- `strongstudent@test.quickstude`
+- `newstudent@mate-e.test`
+- `recoveringstudent@mate-e.test`
+- `strongstudent@mate-e.test`
 
-Use `recoveringstudent@test.quickstude` as the canonical demo and smoke-test account.
+Use `recoveringstudent@mate-e.test` as the canonical demo and smoke-test account.
 
 Pass only if seeded state includes:
 
@@ -139,7 +139,7 @@ In an anonymous session:
 1. Open `/app/progress`
 2. Confirm redirect lands on `/?next=/app/progress`
 3. Trigger modal auth from the homepage or header
-4. Sign in as `recoveringstudent@test.quickstude`
+4. Sign in as `recoveringstudent@mate-e.test`
 5. Confirm the user returns to `/app/progress`
 
 Pass only if:

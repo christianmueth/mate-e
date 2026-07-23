@@ -75,12 +75,12 @@ Pass only if:
 
 Verify these accounts and their intended states exist before QA:
 
-- `newstudent@test.quickstude`
-- `recoveringstudent@test.quickstude`
-- `strongstudent@test.quickstude`
-- `operator@test.quickstude`
+- `newstudent@mate-e.test`
+- `recoveringstudent@mate-e.test`
+- `strongstudent@mate-e.test`
+- `operator@mate-e.test`
 
-The canonical demo and smoke-test account is `recoveringstudent@test.quickstude`.
+The canonical demo and smoke-test account is `recoveringstudent@mate-e.test`.
 
 Pass only if the recovering-student account visibly demonstrates:
 
@@ -102,7 +102,7 @@ Test this first.
 2. Navigate directly to `/app/progress`.
 3. Verify redirect lands on `/?next=/app/progress`.
 4. Verify the homepage loads cleanly and modal auth can be triggered from the homepage or header.
-5. Sign in as `recoveringstudent@test.quickstude`.
+5. Sign in as `recoveringstudent@mate-e.test`.
 6. Verify the user returns to `/app/progress`.
 7. Verify all of the following are visible immediately:
 	- tutor progress read
@@ -120,7 +120,7 @@ Pass only if:
 
 ## 6. Guided Session Verification
 
-Using `recoveringstudent@test.quickstude`:
+Using `recoveringstudent@mate-e.test`:
 
 1. Open the progress dashboard.
 2. Click a recommended concept.
@@ -142,7 +142,7 @@ Pass only if:
 
 ## 7. Empty-State Verification
 
-Using `newstudent@test.quickstude`:
+Using `newstudent@mate-e.test`:
 
 1. Open `/app/progress`.
 2. Verify calm onboarding language and minimal recommendations.

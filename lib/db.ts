@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient } from "@prisma/client";
+import { fromStoredPlan } from "@/lib/billing";
 
 type BillingColumnName = "plan" | "stripeCustomerId" | "stripeSubscriptionStatus" | "stripeCurrentPeriodEnd";
 
@@ -69,7 +70,7 @@ export async function safeUpsertUser<T extends Prisma.UserSelect>(clerkUserId: s
     return await prisma.user.upsert({
       where: { clerkUserId },
       update: {},
-      create: { clerkUserId },
+      create: { clerkUserId, plan: "FREE" },
       select,
     });
   } catch (error) {
@@ -154,7 +155,7 @@ export async function getUserBillingState(clerkUserId: string): Promise<UserBill
 
     return {
       userId: user.id,
-      plan: row.plan == null ? "free" : String(row.plan).toLowerCase(),
+      plan: fromStoredPlan(row.plan),
       stripeCustomerId: row.stripeCustomerId == null ? null : String(row.stripeCustomerId),
       stripeSubscriptionStatus: row.stripeSubscriptionStatus == null ? null : String(row.stripeSubscriptionStatus),
       stripeCurrentPeriodEnd: row.stripeCurrentPeriodEnd instanceof Date

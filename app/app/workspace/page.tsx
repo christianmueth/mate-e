@@ -4,7 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import DoPageAssistant from "@/components/DoPageAssistant";
 import WorkspaceSectionNav from "@/components/WorkspaceSectionNav";
 import { deriveProjectName } from "@/lib/currentProject";
-import { prisma } from "@/lib/db";
+import { prisma, safeUpsertUser } from "@/lib/db";
 import { summarizeReasoningRuns } from "@/lib/reasoningEngine/analytics";
 import { getLatestPersistedWorkspaceContext } from "@/lib/workspaceContextPersistence";
 import type { WorkspaceContext } from "@/lib/workspaceContext";
@@ -78,80 +78,7 @@ export default async function WorkspacePage() {
     redirect(`/?next=${encodeURIComponent("/app/workspace")}`);
   }
 
-  let userRecord = await prisma.user.findFirst({
-    where: { clerkUserId },
-    select: {
-      id: true,
-      xp: true,
-      studyStreak: true,
-      xpToday: true,
-      xpTodayDate: true,
-      dailyGoal: true,
-    },
-  });
-
-  if (!userRecord) {
-    userRecord = await prisma.user.create({
-      data: { clerkUserId },
-      select: {
-        id: true,
-        xp: true,
-        studyStreak: true,
-        xpToday: true,
-        xpTodayDate: true,
-        dailyGoal: true,
-      },
-    });
-  }
-
-  const [persistedWorkspace, recentRuns] = await Promise.all([
-    getLatestPersistedWorkspaceContext(userRecord.id).catch(() => ({ context: null, savedAt: null, runId: null })),
-    prisma.reasoningRun.findMany({
-      where: {
-        userId: userRecord.id,
-        mode: {
-          notIn: ["workspace_context_state", "whiteboard_state"],
-        },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-      select: {
-        id: true,
-        mode: true,
-        title: true,
-        origin: true,
-        confidence: true,
-        trajectoryScore: true,
-        searchDepth: true,
-        beamWidth: true,
-        candidatesGenerated: true,
-        candidatesSelected: true,
-        prunedCount: true,
-        verificationApplied: true,
-        metadata: true,
-        createdAt: true,
-        deckId: true,
-        candidates: {
-          orderBy: [{ rank: "asc" }, { createdAt: "asc" }],
-          take: 6,
-          select: {
-            id: true,
-            rank: true,
-            question: true,
-            answer: true,
-            score: true,
-            verificationConfidence: true,
-            selected: true,
-            pruned: true,
-            trajectoryDepth: true,
-            sourceAttempt: true,
-            difficulty: true,
-            createdAt: true,
-          },
-        },
-      },
-    }).catch(() => [] as RecentRunSummary[]),
-  ]);
+  const { persistedWorkspace, recentRuns } = await loadWorkspaceState(clerkUserId);
 
   const workspaceContext = persistedWorkspace.context;
   const analytics = summarizeReasoningRuns(recentRuns);
@@ -195,6 +122,83 @@ export default async function WorkspacePage() {
       ) : null}
     </div>
   );
+}
+
+async function loadWorkspaceState(clerkUserId: string) {
+  try {
+    const userRecord = await safeUpsertUser(clerkUserId, {
+      id: true,
+      xp: true,
+      studyStreak: true,
+      xpToday: true,
+      xpTodayDate: true,
+      dailyGoal: true,
+    }).catch(() => null);
+
+    if (!userRecord) {
+      return {
+        persistedWorkspace: { context: null, savedAt: null, runId: null },
+        recentRuns: [] as RecentRunSummary[],
+      };
+    }
+
+    const [persistedWorkspace, recentRuns] = await Promise.all([
+      getLatestPersistedWorkspaceContext(userRecord.id).catch(() => ({ context: null, savedAt: null, runId: null })),
+      prisma.reasoningRun.findMany({
+        where: {
+          userId: userRecord.id,
+          mode: {
+            notIn: ["workspace_context_state", "whiteboard_state"],
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        select: {
+          id: true,
+          mode: true,
+          title: true,
+          origin: true,
+          confidence: true,
+          trajectoryScore: true,
+          searchDepth: true,
+          beamWidth: true,
+          candidatesGenerated: true,
+          candidatesSelected: true,
+          prunedCount: true,
+          verificationApplied: true,
+          metadata: true,
+          createdAt: true,
+          deckId: true,
+          candidates: {
+            orderBy: [{ rank: "asc" }, { createdAt: "asc" }],
+            take: 6,
+            select: {
+              id: true,
+              rank: true,
+              question: true,
+              answer: true,
+              score: true,
+              verificationConfidence: true,
+              selected: true,
+              pruned: true,
+              trajectoryDepth: true,
+              sourceAttempt: true,
+              difficulty: true,
+              createdAt: true,
+            },
+          },
+        },
+      }).catch(() => [] as RecentRunSummary[]),
+    ]);
+
+    return { persistedWorkspace, recentRuns };
+  } catch (error) {
+    console.error("[WorkspacePage] Failed to load workspace state:", error);
+    return {
+      persistedWorkspace: { context: null, savedAt: null, runId: null },
+      recentRuns: [] as RecentRunSummary[],
+    };
+  }
 }
 
 function buildNextActions(

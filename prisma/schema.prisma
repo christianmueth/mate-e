@@ -7,6 +7,11 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum SubscriptionPlan {
+  FREE
+  PREMIUM
+}
+
 model User {
   id            String         @id @default(cuid())
   clerkUserId   String         @unique
@@ -16,7 +21,7 @@ model User {
   xp            Int            @default(0)
   xpToday       Int            @default(0)
   xpTodayDate   DateTime?
-  plan          String         @default("free")
+  plan          SubscriptionPlan @default(FREE)
   stripeCustomerId String?     @unique
   stripeSubscriptionId String? @unique
   stripePriceId String?
