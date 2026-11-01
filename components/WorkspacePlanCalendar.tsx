@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import {
   readWorkspaceContext,
@@ -77,6 +77,13 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
   });
   const [items, setItems] = useState<ScheduleItem[]>(() => getSeededScheduleItems(artifact));
   const [selectedId, setSelectedId] = useState<string | null>(() => getSeededScheduleItems(artifact)[0]?.id ?? null);
+  const [selectedDate, setSelectedDate] = useState(
+    () => getSeededScheduleItems(artifact)[0]?.date ?? toDateInputValue(new Date())
+  );
+  const [appointmentTitle, setAppointmentTitle] = useState("");
+  const [appointmentStart, setAppointmentStart] = useState("09:00");
+  const [appointmentEnd, setAppointmentEnd] = useState("10:00");
+  const [appointmentOwner, setAppointmentOwner] = useState("");
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [assistLoading, setAssistLoading] = useState<ScheduleAssistIntent | null>(null);
   const [assistSummary, setAssistSummary] = useState(artifact.summary);
@@ -87,12 +94,15 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
     return startOfMonth(parseDateInput(seeded?.date) || new Date());
   });
   const timelineDragRef = useRef<TimelineDragState | null>(null);
+  const appointmentTitleRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const nextItems = getSeededScheduleItems(artifact);
+    const nextDate = nextItems[0]?.date ?? toDateInputValue(new Date());
     setItems(nextItems);
     setSelectedId(nextItems[0]?.id ?? null);
-    setVisibleMonth(startOfMonth(parseDateInput(nextItems[0]?.date) || new Date()));
+    setSelectedDate(nextDate);
+    setVisibleMonth(startOfMonth(parseDateInput(nextDate) || new Date()));
     setAssistSummary(artifact.summary);
     setAssistInsights(artifact.criticalPath.slice(0, 3));
   }, [seedKey, artifact]);
@@ -168,8 +178,7 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
     () => [...items].sort((left, right) => `${left.date}-${left.start}`.localeCompare(`${right.date}-${right.start}`)),
     [items]
   );
-  const selectedItem = sortedItems.find((item) => item.id === selectedId) || sortedItems[0] || null;
-  const selectedDate = selectedItem?.date || sortedItems[0]?.date || toDateInputValue(new Date());
+  const selectedItem = selectedId ? sortedItems.find((item) => item.id === selectedId) || null : null;
   const dayItems = sortedItems.filter((item) => item.date === selectedDate);
   const monthCells = useMemo(() => buildMonthCells(visibleMonth), [visibleMonth]);
   const timelineHours = useMemo(
@@ -196,32 +205,59 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
   function updateSelectedItem(patch: Partial<ScheduleItem>) {
     if (!selectedItem) return;
     updateItemById(selectedItem.id, patch);
+    if (patch.date) {
+      setSelectedDate(patch.date);
+      const parsed = parseDateInput(patch.date);
+      if (parsed) setVisibleMonth(startOfMonth(parsed));
+    }
   }
 
-  function addEvent() {
+  function addAppointment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const title = appointmentTitle.trim();
+    if (!title) {
+      toast.error("Add an appointment title.");
+      appointmentTitleRef.current?.focus();
+      return;
+    }
+    if (toMinutes(appointmentEnd) <= toMinutes(appointmentStart)) {
+      toast.error("The end time must be after the start time.");
+      return;
+    }
+
     const anchorDate = selectedDate || toDateInputValue(new Date());
     const nextItem: ScheduleItem = {
       id: `custom-${Date.now()}`,
-      title: "New schedule block",
+      title,
       date: anchorDate,
-      start: "13:00",
-      end: "14:00",
-      owner: selectedItem?.owner || "Owner",
+      start: appointmentStart,
+      end: appointmentEnd,
+      owner: appointmentOwner.trim() || selectedItem?.owner || "Owner",
       lane: "task",
       notes: "",
       status: "ready",
     };
     setItems((current) => [...current, nextItem]);
     setSelectedId(nextItem.id);
+    setAppointmentTitle("");
+    setAppointmentOwner("");
     const parsed = parseDateInput(anchorDate);
     if (parsed) {
+      setSelectedDate(anchorDate);
       setVisibleMonth(startOfMonth(parsed));
     }
+    toast.success("Appointment added to your calendar.");
+  }
+
+  function focusAppointmentForm() {
+    appointmentTitleRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    appointmentTitleRef.current?.focus();
   }
 
   function moveItemToDate(itemId: string, nextDate: string) {
     updateItemById(itemId, { date: nextDate });
     setSelectedId(itemId);
+    setSelectedDate(nextDate);
     const parsed = parseDateInput(nextDate);
     if (parsed) {
       setVisibleMonth(startOfMonth(parsed));
@@ -233,6 +269,7 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
     const nextItems = sortedItems.filter((item) => item.id !== selectedItem.id);
     setItems(nextItems);
     setSelectedId(nextItems[0]?.id ?? null);
+    if (nextItems[0]) setSelectedDate(nextItems[0].date);
   }
 
   async function runAssist(intent: ScheduleAssistIntent) {
@@ -256,6 +293,7 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
       }
       setItems(data.suggestion.items);
       setSelectedId(data.suggestion.items[0]?.id ?? null);
+      if (data.suggestion.items[0]) setSelectedDate(data.suggestion.items[0].date);
       setAssistSummary(data.suggestion.summary);
       setAssistInsights(data.suggestion.insights);
       setEntitlement(data.entitlement || null);
@@ -357,6 +395,18 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
               </div>
               <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={() => setVisibleMonth(addMonths(visibleMonth, -1))} className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Prev month</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const today = toDateInputValue(new Date());
+                    setSelectedDate(today);
+                    setSelectedId(sortedItems.find((item) => item.date === today)?.id ?? null);
+                    setVisibleMonth(startOfMonth(new Date()));
+                  }}
+                  className="rounded-full border border-cyan-300 bg-cyan-50 px-4 py-2 text-sm font-medium text-cyan-950 hover:bg-cyan-100"
+                >
+                  Today
+                </button>
                 <button type="button" onClick={() => setVisibleMonth(addMonths(visibleMonth, 1))} className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Next month</button>
               </div>
             </div>
@@ -378,13 +428,15 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
                   const dayScheduleItems = sortedItems.filter((item) => item.date === day.isoDate);
                   const dayIsVisible = day.date.getMonth() === visibleMonth.getMonth();
                   const dayConflictCount = getConflictCount(dayScheduleItems);
+                  const dayIsSelected = day.isoDate === selectedDate;
                   return (
                     <button
                       key={day.isoDate}
                       type="button"
                       onClick={() => {
                         setVisibleMonth(startOfMonth(day.date));
-                        if (dayScheduleItems[0]) setSelectedId(dayScheduleItems[0].id);
+                        setSelectedDate(day.isoDate);
+                        setSelectedId(dayScheduleItems[0]?.id ?? null);
                       }}
                       onDragOver={(event) => {
                         if (!draggingId) return;
@@ -396,12 +448,12 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
                         moveItemToDate(draggingId, day.isoDate);
                         setDraggingId(null);
                       }}
-                      className={dayIsVisible
+                      className={`${dayIsVisible
                         ? dayConflictCount > 0
                           ? "min-h-[132px] rounded-[1.4rem] border border-rose-300 bg-rose-50/50 p-3 text-left hover:border-rose-400"
                           : "min-h-[132px] rounded-[1.4rem] border border-slate-200 bg-white p-3 text-left hover:border-cyan-300 hover:bg-cyan-50/40"
                         : "min-h-[132px] rounded-[1.4rem] border border-slate-100 bg-white/60 p-3 text-left text-slate-400"
-                      }
+                      } ${dayIsSelected ? "ring-2 ring-cyan-400" : ""}`}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-sm font-semibold">{day.date.getDate()}</span>
@@ -429,7 +481,7 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Day studio</p>
                 <h3 className="mt-2 text-2xl font-semibold text-slate-950">{formatAgendaDate(selectedDate)}</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600">Drag a block to move it in time. Grab the bottom edge to resize. Select a block to edit details below.</p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">Choose a time below to add an appointment, or select a block to adjust it.</p>
               </div>
               <div className="flex flex-wrap gap-2 text-xs text-slate-600">
                 <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">{dayItems.length} blocks</span>
@@ -438,6 +490,75 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
                 </span>
               </div>
             </div>
+
+            <form onSubmit={addAppointment} className="mt-5 rounded-[1.5rem] border border-cyan-200 bg-cyan-50/60 p-4">
+              <p className="text-sm font-semibold text-slate-950">Add an appointment</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <label className="block text-xs font-medium text-slate-700 sm:col-span-2 xl:col-span-1">
+                  What is it?
+                  <input
+                    ref={appointmentTitleRef}
+                    required
+                    value={appointmentTitle}
+                    onChange={(event) => setAppointmentTitle(event.target.value)}
+                    placeholder="e.g. Project check-in"
+                    className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100"
+                  />
+                </label>
+                <label className="block text-xs font-medium text-slate-700">
+                  Date
+                  <input
+                    required
+                    type="date"
+                    value={selectedDate}
+                    onChange={(event) => {
+                      setSelectedDate(event.target.value);
+                      setSelectedId(null);
+                      const parsed = parseDateInput(event.target.value);
+                      if (parsed) setVisibleMonth(startOfMonth(parsed));
+                    }}
+                    className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100"
+                  />
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block text-xs font-medium text-slate-700">
+                    Starts
+                    <input
+                      required
+                      type="time"
+                      value={appointmentStart}
+                      onChange={(event) => setAppointmentStart(event.target.value)}
+                      className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100"
+                    />
+                  </label>
+                  <label className="block text-xs font-medium text-slate-700">
+                    Ends
+                    <input
+                      required
+                      type="time"
+                      value={appointmentEnd}
+                      onChange={(event) => setAppointmentEnd(event.target.value)}
+                      className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100"
+                    />
+                  </label>
+                </div>
+                <label className="block text-xs font-medium text-slate-700">
+                  Owner (optional)
+                  <input
+                    value={appointmentOwner}
+                    onChange={(event) => setAppointmentOwner(event.target.value)}
+                    placeholder={selectedItem?.owner || "Add a name"}
+                    className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-cyan-600 focus:ring-2 focus:ring-cyan-100"
+                  />
+                </label>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <p className="text-xs text-slate-600">Appointments are added to the selected day. You can edit notes and status afterward.</p>
+                <button type="submit" className="rounded-full bg-slate-950 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2">
+                  Add appointment
+                </button>
+              </div>
+            </form>
 
             <div className="mt-5 rounded-[1.75rem] border border-slate-200 bg-slate-50 p-4">
               <div className="relative" style={{ height: `${(TIMELINE_END_HOUR - TIMELINE_START_HOUR) * TIMELINE_HOUR_HEIGHT}px` }}>
@@ -457,6 +578,7 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
                       onMouseDown={(event) => {
                         if ((event.target as HTMLElement).dataset.resizeHandle === "true") return;
                         setSelectedId(item.id);
+                        setSelectedDate(item.date);
                         timelineDragRef.current = {
                           kind: "move",
                           itemId: item.id,
@@ -475,6 +597,7 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
                         onMouseDown={(event) => {
                           event.stopPropagation();
                           setSelectedId(item.id);
+                          setSelectedDate(item.date);
                           timelineDragRef.current = {
                             kind: "resize",
                             itemId: item.id,
@@ -524,7 +647,10 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setSelectedId(item.id)}
+                  onClick={() => {
+                    setSelectedId(item.id);
+                    setSelectedDate(item.date);
+                  }}
                   draggable
                   onDragStart={() => setDraggingId(item.id)}
                   onDragEnd={() => setDraggingId(null)}
@@ -546,7 +672,7 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
           <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Edit block</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Edit selected item</p>
                 <h3 className="mt-2 text-xl font-semibold text-slate-950">Adjust the selected schedule item</h3>
               </div>
               {selectedItem ? (
@@ -618,7 +744,7 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
               <p className="mt-1 text-sm text-slate-700">{selectedItem ? `Selected: ${selectedItem.title} on ${formatAgendaDate(selectedItem.date)} at ${selectedItem.start}-${selectedItem.end}` : "Pick a block or create one to continue planning."}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={addEvent} className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50">Add block</button>
+              <button type="button" onClick={focusAppointmentForm} className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50">Add appointment</button>
               <button type="button" onClick={() => void runAssist("optimize")} disabled={assistLoading !== null || Boolean(entitlement?.locked)} className="rounded-full border border-cyan-300 bg-cyan-50 px-4 py-2 text-sm font-medium text-cyan-950 hover:bg-cyan-100 disabled:opacity-60">{assistLoading === "optimize" ? "Optimizing..." : "Optimize"}</button>
               <button type="button" onClick={downloadCalendar} className="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50">Export .ics</button>
               <button type="button" onClick={downloadReport} className="rounded-full bg-slate-950 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">Export report</button>
