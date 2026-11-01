@@ -216,7 +216,7 @@ export default function WorkspaceOperationsConsole({
 
   return (
     <section className={shouldShowArtifact ? "grid gap-5 xl:grid-cols-[0.86fr_1.14fr]" : "grid gap-5"}>
-      <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+      <div className={`rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm ${simpleMode ? "order-2 xl:order-1" : ""}`}>
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Plan</p>
         {simpleMode ? null : (
           <div className="mt-4 flex flex-wrap gap-2">
@@ -409,7 +409,7 @@ export default function WorkspaceOperationsConsole({
       {shouldShowArtifact
         ? simpleMode
           ? calendarArtifact
-            ? <WorkspacePlanCalendar artifact={calendarArtifact} />
+            ? <div className="order-1 xl:order-2"><WorkspacePlanCalendar artifact={calendarArtifact} /></div>
             : null
           : <BuilderSurface artifact={artifact as Exclude<BuilderArtifact, EmptyArtifact>} compact={false} />
         : null}
