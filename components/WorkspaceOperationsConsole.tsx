@@ -162,19 +162,16 @@ export default function WorkspaceOperationsConsole({
   simpleMode = false,
 }: WorkspaceOperationsConsoleProps) {
   const router = useRouter();
-  const seededStateKey = JSON.stringify(seededState ?? {});
   const normalizedInitialBuilder = simpleMode ? "execution-plan" : isBuilderId(initialBuilder) ? initialBuilder : "execution-plan";
-  const normalizedInitialState = useMemo(() => normalizeBuildState(seededState, simpleMode), [seededStateKey, simpleMode]);
+  const normalizedInitialState = useMemo(() => normalizeBuildState(seededState, simpleMode), [seededState, simpleMode]);
   const [activeBuilder, setActiveBuilder] = useState<BuilderId>(normalizedInitialBuilder);
   const [state, setState] = useState<BuildState>(normalizedInitialState);
-  const [hasGenerated, setHasGenerated] = useState(Boolean(normalizedInitialState.objective.trim()));
   const [showContext, setShowContext] = useState(Boolean(normalizedInitialState.sourceMaterial.trim()));
   const activeBuilderConfig = builders.find((builder) => builder.id === activeBuilder) ?? builders[0];
 
   useEffect(() => {
     setActiveBuilder(normalizedInitialBuilder);
     setState(normalizedInitialState);
-    setHasGenerated(Boolean(normalizedInitialState.objective.trim()));
     setShowContext(Boolean(normalizedInitialState.sourceMaterial.trim()));
   }, [normalizedInitialBuilder, normalizedInitialState]);
 
@@ -187,9 +184,6 @@ export default function WorkspaceOperationsConsole({
   }, [activeBuilder, artifact, simpleMode]);
 
   function updateField<K extends keyof BuildState>(key: K, value: BuildState[K]) {
-    if (simpleMode) {
-      setHasGenerated(false);
-    }
     setState((current) => ({ ...current, [key]: value }));
   }
 
@@ -209,14 +203,18 @@ export default function WorkspaceOperationsConsole({
       sourceMaterial: current.sourceMaterial.trim() || objective,
       deliverables: current.deliverables.trim() || "Next actions and timing",
     }));
-    setHasGenerated(true);
   }
 
   const shouldShowArtifact = simpleMode ? Boolean(calendarArtifact) : artifact.ready;
+  const sectionClassName = shouldShowArtifact
+    ? simpleMode
+      ? "grid gap-5 xl:grid-cols-[1.14fr_0.86fr]"
+      : "grid gap-5 xl:grid-cols-[0.86fr_1.14fr]"
+    : "grid gap-5";
 
   return (
-    <section className={shouldShowArtifact ? "grid gap-5 xl:grid-cols-[0.86fr_1.14fr]" : "grid gap-5"}>
-      <div className={`rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm ${simpleMode ? "order-2 xl:order-1" : ""}`}>
+    <section className={sectionClassName}>
+      <div className={`rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm ${simpleMode ? "order-2" : ""}`}>
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Plan</p>
         {simpleMode ? null : (
           <div className="mt-4 flex flex-wrap gap-2">
@@ -240,7 +238,7 @@ export default function WorkspaceOperationsConsole({
         )}
 
         <div className="mt-5 rounded-3xl border border-slate-200 bg-slate-50 p-4">
-          <h2 className="text-xl font-semibold text-slate-950">{simpleMode ? "What are you trying to accomplish?" : activeBuilderConfig.title}</h2>
+          <h2 className="text-xl font-semibold text-slate-950">{simpleMode ? "Build a plan from your calendar" : activeBuilderConfig.title}</h2>
           {simpleMode ? null : <p className="mt-2 text-sm leading-6 text-slate-700">{activeBuilderConfig.subtitle}</p>}
 
           {simpleMode ? null : (
@@ -265,7 +263,7 @@ export default function WorkspaceOperationsConsole({
                   value={state.objective}
                   onChange={(event) => updateField("objective", event.target.value)}
                   placeholder="What needs to get done?"
-                  className="mt-2 min-h-[200px] w-full rounded-[1.5rem] border border-slate-300 px-4 py-4 text-base text-slate-900 outline-none focus:border-slate-900"
+                  className="mt-2 min-h-[128px] w-full rounded-[1.5rem] border border-slate-300 px-4 py-4 text-base text-slate-900 outline-none focus:border-slate-900"
                 />
               ) : (
                 <input
@@ -395,7 +393,6 @@ export default function WorkspaceOperationsConsole({
                 type="button"
                 onClick={() => {
                   setState(normalizedInitialState);
-                  setHasGenerated(Boolean(normalizedInitialState.objective.trim()));
                 }}
                 className="rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50"
               >
@@ -409,7 +406,7 @@ export default function WorkspaceOperationsConsole({
       {shouldShowArtifact
         ? simpleMode
           ? calendarArtifact
-            ? <div className="order-1 xl:order-2"><WorkspacePlanCalendar artifact={calendarArtifact} /></div>
+            ? <div className="order-1"><WorkspacePlanCalendar artifact={calendarArtifact} compact /></div>
             : null
           : <BuilderSurface artifact={artifact as Exclude<BuilderArtifact, EmptyArtifact>} compact={false} />
         : null}

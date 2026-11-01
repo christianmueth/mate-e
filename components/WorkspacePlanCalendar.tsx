@@ -67,7 +67,7 @@ const TIMELINE_END_HOUR = 21;
 const TIMELINE_HOUR_HEIGHT = 64;
 const SNAP_MINUTES = 30;
 
-export default function WorkspacePlanCalendar({ artifact }: { artifact: ExecutionArtifact }) {
+export default function WorkspacePlanCalendar({ artifact, compact = false }: { artifact: ExecutionArtifact; compact?: boolean }) {
   const scheduleKey = slugify(artifact.title || "workspace-schedule");
   const seedKey = JSON.stringify({
     title: artifact.title,
@@ -315,7 +315,14 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
   }
 
   return (
-    <div className="space-y-6 pb-32">
+    <div className={compact ? "space-y-6 pb-8" : "space-y-6 pb-32"}>
+      {compact ? (
+        <section className="rounded-[2rem] border border-cyan-200 bg-cyan-50/60 p-5 shadow-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800">Calendar</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{artifact.title}</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-700">Add appointments directly, then use the optional planner to turn your calendar into a project plan.</p>
+        </section>
+      ) : (
       <div className="rounded-[2.5rem] border border-cyan-200 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.18),_transparent_34%),linear-gradient(135deg,_#f0fdfa_0%,_#ffffff_48%,_#ecfeff_100%)] p-6 shadow-sm lg:p-8">
         <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
           <div className="space-y-5">
@@ -383,6 +390,7 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
           </div>
         </div>
       </div>
+      )}
 
       <div className="grid gap-6 2xl:grid-cols-[1.35fr_0.9fr]">
         <div className="space-y-6">
@@ -448,11 +456,11 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
                         moveItemToDate(draggingId, day.isoDate);
                         setDraggingId(null);
                       }}
-                      className={`${dayIsVisible
+                      className={`${compact ? "min-h-[92px]" : "min-h-[132px]"} ${dayIsVisible
                         ? dayConflictCount > 0
-                          ? "min-h-[132px] rounded-[1.4rem] border border-rose-300 bg-rose-50/50 p-3 text-left hover:border-rose-400"
-                          : "min-h-[132px] rounded-[1.4rem] border border-slate-200 bg-white p-3 text-left hover:border-cyan-300 hover:bg-cyan-50/40"
-                        : "min-h-[132px] rounded-[1.4rem] border border-slate-100 bg-white/60 p-3 text-left text-slate-400"
+                          ? "rounded-[1.4rem] border border-rose-300 bg-rose-50/50 p-3 text-left hover:border-rose-400"
+                          : "rounded-[1.4rem] border border-slate-200 bg-white p-3 text-left hover:border-cyan-300 hover:bg-cyan-50/40"
+                        : "rounded-[1.4rem] border border-slate-100 bg-white/60 p-3 text-left text-slate-400"
                       } ${dayIsSelected ? "ring-2 ring-cyan-400" : ""}`}
                     >
                       <div className="flex items-center justify-between gap-2">
@@ -481,7 +489,7 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Day studio</p>
                 <h3 className="mt-2 text-2xl font-semibold text-slate-950">{formatAgendaDate(selectedDate)}</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600">Choose a time below to add an appointment, or select a block to adjust it.</p>
+                <p className="mt-2 text-sm leading-6 text-slate-600">{compact ? "Choose a time and add an appointment to this day." : "Choose a time below to add an appointment, or select a block to adjust it."}</p>
               </div>
               <div className="flex flex-wrap gap-2 text-xs text-slate-600">
                 <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">{dayItems.length} blocks</span>
@@ -553,14 +561,14 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
                 </label>
               </div>
               <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                <p className="text-xs text-slate-600">Appointments are added to the selected day. You can edit notes and status afterward.</p>
+                <p className="text-xs text-slate-600">Appointments are added to the selected day. Select one from the calendar to edit it.</p>
                 <button type="submit" className="rounded-full bg-slate-950 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2">
                   Add appointment
                 </button>
               </div>
             </form>
 
-            <div className="mt-5 rounded-[1.75rem] border border-slate-200 bg-slate-50 p-4">
+            {compact ? null : <div className="mt-5 rounded-[1.75rem] border border-slate-200 bg-slate-50 p-4">
               <div className="relative" style={{ height: `${(TIMELINE_END_HOUR - TIMELINE_START_HOUR) * TIMELINE_HOUR_HEIGHT}px` }}>
                 {timelineHours.map((hour, index) => (
                   <div key={hour} className="absolute inset-x-0 border-t border-slate-200" style={{ top: `${index * TIMELINE_HOUR_HEIGHT}px` }}>
@@ -612,11 +620,12 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
                 })}
               </div>
             </div>
+            }
           </div>
         </div>
 
         <div className="space-y-6">
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <div className={compact ? "hidden" : "rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm"}>
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">AI guidance</p>
@@ -634,7 +643,7 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
             </div>
           </div>
 
-          <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+          <div className={compact ? "hidden" : "rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm"}>
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Agenda rail</p>
@@ -736,7 +745,7 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
         </div>
       </div>
 
-      <div className="sticky bottom-4 z-20">
+      {compact ? null : <div className="sticky bottom-4 z-20">
         <div className="rounded-[1.75rem] border border-slate-200 bg-white/95 p-4 shadow-[0_18px_40px_rgba(15,23,42,0.12)] backdrop-blur">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
@@ -751,7 +760,7 @@ export default function WorkspacePlanCalendar({ artifact }: { artifact: Executio
             </div>
           </div>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

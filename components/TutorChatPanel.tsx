@@ -204,7 +204,7 @@ export default function TutorChatPanel() {
     }));
   }, [activeSessionContext, context, messages]);
 
-  if (!isWorkspaceRoute || !enabled || isExecuteRoute || isCaptureRoute || isBillingRoute) return null;
+  if (!isWorkspaceRoute || !enabled || isExecuteRoute || isCaptureRoute || isBillingRoute || isPlanRoute) return null;
 
   const summaryLabel = buildSummaryLabel({ pathname, deckId, deckTitle: context?.deckTitle ?? null });
   const recommendation = buildRecommendationCard({
