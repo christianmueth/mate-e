@@ -181,6 +181,10 @@ export default function WorkspaceOperationsConsole({
   const artifact = useMemo(() => buildArtifact(activeBuilder, state, simpleMode), [activeBuilder, state, simpleMode]);
   const signals = useMemo(() => buildSignals(activeBuilder, state), [activeBuilder, state]);
   const chatHref = useMemo(() => buildWorkspaceChatHref(activeBuilder, state, artifact), [activeBuilder, artifact, state]);
+  const calendarArtifact = useMemo<ExecutionArtifact | null>(() => {
+    if (!simpleMode || activeBuilder !== "execution-plan") return null;
+    return artifact.kind === "execution-plan" && artifact.ready ? artifact : buildStarterCalendarArtifact();
+  }, [activeBuilder, artifact, simpleMode]);
 
   function updateField<K extends keyof BuildState>(key: K, value: BuildState[K]) {
     if (simpleMode) {
@@ -208,7 +212,7 @@ export default function WorkspaceOperationsConsole({
     setHasGenerated(true);
   }
 
-  const shouldShowArtifact = simpleMode ? hasGenerated && artifact.ready : artifact.ready;
+  const shouldShowArtifact = simpleMode ? Boolean(calendarArtifact) : artifact.ready;
 
   return (
     <section className={shouldShowArtifact ? "grid gap-5 xl:grid-cols-[0.86fr_1.14fr]" : "grid gap-5"}>
@@ -402,7 +406,13 @@ export default function WorkspaceOperationsConsole({
         </div>
       </div>
 
-      {shouldShowArtifact ? <BuilderSurface artifact={artifact as Exclude<BuilderArtifact, EmptyArtifact>} compact={simpleMode} /> : null}
+      {shouldShowArtifact
+        ? simpleMode
+          ? calendarArtifact
+            ? <WorkspacePlanCalendar artifact={calendarArtifact} />
+            : null
+          : <BuilderSurface artifact={artifact as Exclude<BuilderArtifact, EmptyArtifact>} compact={false} />
+        : null}
     </section>
   );
 }
@@ -828,6 +838,22 @@ function buildCompactExecutionArtifact(state: BuildState): ExecutionArtifact {
       { title: "Next move identified", body: nextActions[0] || "The project now has a concrete starting move instead of a blank planning surface.", tone: "attention" },
       { title: "Next step exposed", body: upcoming[0], tone: "risk" },
     ],
+  };
+}
+
+function buildStarterCalendarArtifact(): ExecutionArtifact {
+  return {
+    kind: "execution-plan",
+    title: "Your calendar",
+    summary: "Add appointments now, or describe your goal to generate a project plan around them.",
+    metaLine: "Ready for your first appointment",
+    signal: "No plan submitted yet",
+    ready: true,
+    primaryCta: "Create plan",
+    phases: [],
+    milestones: [],
+    criticalPath: [],
+    feed: [],
   };
 }
 
