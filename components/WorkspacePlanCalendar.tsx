@@ -45,6 +45,12 @@ type ScheduleAssistResponse = {
   error?: string;
 };
 
+type CalendarShareResponse = {
+  ok: boolean;
+  url?: string;
+  error?: string;
+};
+
 type TimelineDragState =
   | {
       kind: "move";
@@ -86,6 +92,8 @@ export default function WorkspacePlanCalendar({ artifact, compact = false }: { a
   const [appointmentOwner, setAppointmentOwner] = useState("");
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [assistLoading, setAssistLoading] = useState<ScheduleAssistIntent | null>(null);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [publicShareUrl, setPublicShareUrl] = useState<string | null>(null);
   const [assistSummary, setAssistSummary] = useState(artifact.summary);
   const [assistInsights, setAssistInsights] = useState<string[]>(artifact.criticalPath.slice(0, 3));
   const [entitlement, setEntitlement] = useState<UsageEntitlement | null>(null);
@@ -309,6 +317,65 @@ export default function WorkspacePlanCalendar({ artifact, compact = false }: { a
     downloadTextFile(`${slugify(artifact.title || "workspace-schedule")}.ics`, ics, "text/calendar;charset=utf-8");
   }
 
+  async function shareCalendarFile() {
+    const file = new File(
+      [buildIcsFile(sortedItems, artifact)],
+      `${slugify(artifact.title || "workspace-schedule")}.ics`,
+      { type: "text/calendar;charset=utf-8" }
+    );
+
+    if (navigator.share && navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ title: artifact.title, text: "Calendar from Mate-E", files: [file] });
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        toast.error("Unable to open the share sheet. Download the calendar file instead.");
+        return;
+      }
+    }
+
+    downloadCalendar();
+    toast.success("Your calendar was downloaded. Attach the .ics file to share it.");
+  }
+
+  async function createPublicShareLink() {
+    if (!sortedItems.length) {
+      toast.error("Add at least one appointment before creating a public link.");
+      return;
+    }
+
+    setShareLoading(true);
+    try {
+      const response = await fetch("/api/workspace/calendar-share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: artifact.title, items: sortedItems }),
+      });
+      const data = (await safeJson(response)) as CalendarShareResponse | null;
+      if (!response.ok || !data?.ok || !data.url) {
+        throw new Error(data?.error || "Unable to create a public calendar link.");
+      }
+
+      setPublicShareUrl(data.url);
+      toast.success("Read-only calendar link created.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to create a public calendar link.");
+    } finally {
+      setShareLoading(false);
+    }
+  }
+
+  async function copyPublicShareLink() {
+    if (!publicShareUrl) return;
+    try {
+      await navigator.clipboard.writeText(publicShareUrl);
+      toast.success("Calendar link copied.");
+    } catch {
+      toast.error("Unable to copy the link. Select and copy it manually.");
+    }
+  }
+
   function downloadReport() {
     const report = buildScheduleReport(sortedItems, artifact, assistSummary, assistInsights);
     downloadTextFile(`${slugify(artifact.title || "workspace-schedule")}-report.md`, report, "text/markdown;charset=utf-8");
@@ -321,6 +388,19 @@ export default function WorkspacePlanCalendar({ artifact, compact = false }: { a
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800">Calendar</p>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{artifact.title}</h2>
           <p className="mt-2 text-sm leading-6 text-slate-700">Add appointments directly, then use the optional planner to turn your calendar into a project plan.</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button type="button" onClick={downloadCalendar} className="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50">Export .ics</button>
+            <button type="button" onClick={() => void shareCalendarFile()} className="rounded-full border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50">Share file</button>
+            <button type="button" onClick={() => void createPublicShareLink()} disabled={shareLoading} className="rounded-full bg-slate-950 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60">
+              {shareLoading ? "Creating link..." : "Create share link"}
+            </button>
+          </div>
+          {publicShareUrl ? (
+            <div className="mt-4 flex flex-col gap-2 rounded-2xl border border-cyan-200 bg-white p-3 sm:flex-row sm:items-center">
+              <input aria-label="Public calendar link" readOnly value={publicShareUrl} className="min-w-0 flex-1 bg-transparent text-sm text-slate-700 outline-none" />
+              <button type="button" onClick={() => void copyPublicShareLink()} className="rounded-full border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-900 hover:bg-slate-50">Copy link</button>
+            </div>
+          ) : null}
         </section>
       ) : (
       <div className="rounded-[2.5rem] border border-cyan-200 bg-[radial-gradient(circle_at_top_left,_rgba(34,211,238,0.18),_transparent_34%),linear-gradient(135deg,_#f0fdfa_0%,_#ffffff_48%,_#ecfeff_100%)] p-6 shadow-sm lg:p-8">
@@ -824,7 +904,7 @@ function WorkflowActionCard({
   );
 }
 
-async function safeJson(response: Response): Promise<any | null> {
+async function safeJson(response: Response): Promise<unknown | null> {
   try {
     const text = await response.text();
     return text ? JSON.parse(text) : null;

@@ -30,6 +30,20 @@ model User {
   decks         Deck[]
   reasoningRuns ReasoningRun[]
   studentState  StudentState?
+  calendarShares CalendarShare[]
+}
+
+model CalendarShare {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  title     String
+  items     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
 }
 
 model Deck {
