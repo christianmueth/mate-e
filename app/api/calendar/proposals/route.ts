@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { buildConflictFreeProposal, DEFAULT_AVAILABILITY, sanitizeAvailability } from "@/lib/calendarPlanner";
 import { prisma, safeUpsertUser } from "@/lib/db";
+import { getActiveWorkspaceProject } from "@/lib/activeWorkspaceProject";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,6 +13,7 @@ export async function POST(request: Request) {
     if (!clerkUserId) return unauthorized();
     const user = await safeUpsertUser(clerkUserId, { id: true });
     if (!user) return NextResponse.json({ ok: false, error: "Calendar planner storage is unavailable." }, { status: 503 });
+    const project = await getActiveWorkspaceProject(user.id);
     const body = await request.json() as Record<string, unknown>;
     const title = typeof body.title === "string" ? body.title.trim().slice(0, 160) : "";
     const deadline = typeof body.deadline === "string" ? new Date(body.deadline) : null;
@@ -20,8 +22,8 @@ export async function POST(request: Request) {
     if (!title || !deadline || Number.isNaN(deadline.getTime()) || deadline <= new Date() || !Number.isInteger(hours) || hours < 1 || hours > 80) {
       return NextResponse.json({ ok: false, error: "Provide a title, a future deadline, and 1–80 hours." }, { status: 400 });
     }
-    if (taskId && !await prisma.planTask.findFirst({ where: { id: taskId, userId: user.id }, select: { id: true } })) {
-      return NextResponse.json({ ok: false, error: "Choose a task from your own plan." }, { status: 400 });
+    if (taskId && !await prisma.planTask.findFirst({ where: { id: taskId, userId: user.id, projectId: project.id }, select: { id: true } })) {
+      return NextResponse.json({ ok: false, error: "Choose a task from your active workspace project." }, { status: 400 });
     }
 
     const [availabilityRecord, events] = await Promise.all([
@@ -36,7 +38,7 @@ export async function POST(request: Request) {
     if ("error" in result) return NextResponse.json({ ok: false, error: result.error }, { status: 409 });
 
     const proposal = await prisma.calendarProposal.create({
-      data: { userId: user.id, taskId, title, deadline, totalMinutes: hours * 60, items: result.blocks },
+      data: { userId: user.id, projectId: project.id, taskId, title, deadline, totalMinutes: hours * 60, items: result.blocks },
       select: { id: true, title: true, deadline: true, totalMinutes: true, items: true, status: true, taskId: true },
     });
     return NextResponse.json({ ok: true, proposal });

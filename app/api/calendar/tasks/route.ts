@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma, safeUpsertUser } from "@/lib/db";
+import { getActiveWorkspaceProject } from "@/lib/activeWorkspaceProject";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,9 +16,11 @@ export async function POST(request: Request) {
     const user = await safeUpsertUser(clerkUserId, { id: true });
     if (!user) return NextResponse.json({ ok: false, error: "Task storage is unavailable." }, { status: 503 });
 
+    const project = await getActiveWorkspaceProject(user.id);
     const task = await prisma.planTask.create({
       data: {
         userId: user.id,
+        projectId: project.id,
         title,
         description: typeof body.description === "string" ? body.description.trim().slice(0, 2000) || null : null,
         dueAt: parseDate(body.dueAt),

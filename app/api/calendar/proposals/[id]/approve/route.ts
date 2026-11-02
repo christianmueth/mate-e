@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getActiveWorkspaceProject } from "@/lib/activeWorkspaceProject";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,10 +14,11 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     if (!clerkUserId) return NextResponse.json({ ok: false, error: "Sign in to approve calendar changes." }, { status: 401 });
     const user = await prisma.user.findUnique({ where: { clerkUserId }, select: { id: true } });
     if (!user) return NextResponse.json({ ok: false, error: "Calendar planner storage is unavailable." }, { status: 503 });
+    const project = await getActiveWorkspaceProject(user.id);
     const { id } = await context.params;
 
     const created = await prisma.$transaction(async (transaction) => {
-      const proposal = await transaction.calendarProposal.findFirst({ where: { id, userId: user.id }, select: { id: true, title: true, taskId: true, status: true, items: true } });
+      const proposal = await transaction.calendarProposal.findFirst({ where: { id, userId: user.id, projectId: project.id }, select: { id: true, title: true, projectId: true, taskId: true, status: true, items: true } });
       if (!proposal) return { kind: "missing" as const };
       if (proposal.status === "APPROVED") return { kind: "approved" as const };
       const blocks = sanitizeBlocks(proposal.items);
@@ -29,6 +31,7 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
       await transaction.calendarEvent.createMany({
         data: blocks.map((block) => ({
           userId: user.id,
+          projectId: proposal.projectId,
           proposalId: proposal.id,
           taskId: proposal.taskId,
           title: block.title,

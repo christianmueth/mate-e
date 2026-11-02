@@ -26,6 +26,11 @@ type PlanTask = {
   dueAt: string | null;
 };
 
+type WorkspaceProject = {
+  id: string;
+  title: string;
+};
+
 type CalendarView = "day" | "week" | "month";
 
 type EventForm = {
@@ -57,6 +62,7 @@ const EMPTY_FORM: EventForm = {
 export default function WorkspaceCalendarFoundation() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [tasks, setTasks] = useState<PlanTask[]>([]);
+  const [project, setProject] = useState<WorkspaceProject | null>(null);
   const [view, setView] = useState<CalendarView>("month");
   const [anchorDate, setAnchorDate] = useState(() => startOfDay(new Date()));
   const [form, setForm] = useState<EventForm>(EMPTY_FORM);
@@ -77,10 +83,11 @@ export default function WorkspaceCalendarFoundation() {
     setLoading(true);
     try {
       const response = await fetch("/api/calendar/events", { cache: "no-store" });
-      const data = await response.json() as { ok?: boolean; events?: CalendarEvent[]; tasks?: PlanTask[]; error?: string };
+      const data = await response.json() as { ok?: boolean; project?: WorkspaceProject; events?: CalendarEvent[]; tasks?: PlanTask[]; error?: string };
       if (!response.ok || !data.ok) throw new Error(data.error || "Unable to load your calendar.");
       setEvents(data.events || []);
       setTasks(data.tasks || []);
+      setProject(data.project || null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to load your calendar.");
     } finally {
@@ -265,7 +272,7 @@ export default function WorkspaceCalendarFoundation() {
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{selectedEvent ? "Edit event" : "New event"}</p>
             <h3 className="mt-1 text-xl font-semibold text-slate-950">{selectedEvent ? selectedEvent.title : "Add time to your calendar"}</h3>
-            {selectedEvent?.task ? <a href="#plan-tasks" className="mt-2 inline-block text-sm font-medium text-cyan-800 hover:underline">Open linked task: {selectedEvent.task.title}</a> : null}
+            {selectedEvent?.task ? <a href={`#active-project-task-${selectedEvent.task.id}`} className="mt-2 inline-block text-sm font-medium text-cyan-800 hover:underline">Open active-project task: {selectedEvent.task.title}</a> : null}
           </div>
           {selectedEvent ? <button type="button" onClick={() => void deleteSelectedEvent()} disabled={saving} className="rounded-full border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-60">Delete</button> : null}
         </div>
@@ -281,17 +288,17 @@ export default function WorkspaceCalendarFoundation() {
             <label className="text-sm font-medium text-slate-800">Repeat until<input disabled={form.recurrence === "NONE"} type="date" value={form.recurrenceUntil} onChange={(event) => setForm({ ...form, recurrenceUntil: event.target.value })} className={inputClass} /></label>
             <label className="text-sm font-medium text-slate-800">Email reminder<select value={form.reminderMinutes} onChange={(event) => setForm({ ...form, reminderMinutes: event.target.value })} className={inputClass}><option value="">No reminder</option><option value="5">5 minutes before</option><option value="15">15 minutes before</option><option value="60">1 hour before</option><option value="1440">1 day before</option></select></label>
           </div>
-          <label className="text-sm font-medium text-slate-800">Link a Mate-E plan task<select value={form.taskId} onChange={(event) => setForm({ ...form, taskId: event.target.value })} className={inputClass}><option value="">No linked task</option>{tasks.map((task) => <option key={task.id} value={task.id}>{task.title}</option>)}</select></label>
-          <label className="text-sm font-medium text-slate-800">Or create and link a task<input value={form.newTaskTitle} onChange={(event) => setForm({ ...form, newTaskTitle: event.target.value })} placeholder="e.g. Prepare project check-in" className={inputClass} /></label>
+          <label className="text-sm font-medium text-slate-800">Link an active-project task<select value={form.taskId} onChange={(event) => setForm({ ...form, taskId: event.target.value })} className={inputClass}><option value="">No linked task</option>{tasks.map((task) => <option key={task.id} value={task.id}>{task.title}</option>)}</select></label>
+          <label className="text-sm font-medium text-slate-800">Or create and link an active-project task<input value={form.newTaskTitle} onChange={(event) => setForm({ ...form, newTaskTitle: event.target.value })} placeholder="e.g. Prepare project check-in" className={inputClass} /></label>
           <label className="text-sm font-medium text-slate-800">Notes<textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className={`${inputClass} min-h-24`} /></label>
           <div className="flex flex-wrap gap-2"><button disabled={saving} type="submit" className="rounded-full bg-slate-950 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60">{saving ? "Saving…" : selectedEvent ? "Save event" : "Create event"}</button>{selectedEvent ? <button type="button" onClick={() => startNewEvent(form.date)} className={secondaryButtonClass}>New event</button> : null}</div>
         </form>
       </section>
 
       <section id="plan-tasks" className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Mate-E plan tasks</p>
-        <h3 className="mt-1 text-xl font-semibold text-slate-950">Linked work</h3>
-        <div className="mt-4 space-y-2">{tasks.length ? tasks.map((task) => <article key={task.id} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3"><p className="font-medium text-slate-900">{task.title}</p><p className="mt-1 text-sm text-slate-600">{task.description || task.status}</p></article>) : <p className="text-sm text-slate-600">Create a linked task from an event or scheduling proposal.</p>}</div>
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Active workspace project</p>
+        <h3 className="mt-1 text-xl font-semibold text-slate-950">{project?.title || "Project tasks"}</h3>
+        <div className="mt-4 space-y-2">{tasks.length ? tasks.map((task) => <article id={`active-project-task-${task.id}`} key={task.id} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3"><p className="font-medium text-slate-900">{task.title}</p><p className="mt-1 text-sm text-slate-600">{task.description || task.status}</p></article>) : <p className="text-sm text-slate-600">Create an active-project task from an event or scheduling proposal.</p>}</div>
       </section>
     </div>
   );

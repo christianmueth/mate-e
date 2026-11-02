@@ -89,7 +89,7 @@ export default function CalendarPlanningAssistant({ tasks, onApplied }: { tasks:
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="text-sm font-medium text-slate-800">Hours<input required min="1" max="80" type="number" value={hours} onChange={(event) => setHours(event.target.value)} className={inputClass} /></label>
           <label className="text-sm font-medium text-slate-800">Deadline<input required type="date" value={deadline} onChange={(event) => setDeadline(event.target.value)} className={inputClass} /></label>
-          <label className="text-sm font-medium text-slate-800">Link task<select value={taskId} onChange={(event) => setTaskId(event.target.value)} className={inputClass}><option value="">No task</option>{tasks.map((task) => <option key={task.id} value={task.id}>{task.title}</option>)}</select></label>
+          <label className="text-sm font-medium text-slate-800">Link active-project task<select value={taskId} onChange={(event) => setTaskId(event.target.value)} className={inputClass}><option value="">No task</option>{tasks.map((task) => <option key={task.id} value={task.id}>{task.title}</option>)}</select></label>
         </div>
         <button disabled={saving} type="submit" className="w-fit rounded-full bg-slate-950 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60">Ask Mate-E to propose time</button>
       </form>

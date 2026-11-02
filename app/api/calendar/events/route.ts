@@ -2,6 +2,7 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma, safeUpsertUser } from "@/lib/db";
 import { parseCalendarEvent } from "@/lib/calendarEventInput";
+import { getActiveWorkspaceProject } from "@/lib/activeWorkspaceProject";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,20 +26,21 @@ export async function GET() {
     const user = await getUser();
     if (!user) return unauthorized();
 
+    const project = await getActiveWorkspaceProject(user.id);
     const [events, tasks] = await Promise.all([
       prisma.calendarEvent.findMany({
-        where: { userId: user.id },
+        where: { userId: user.id, projectId: project.id },
         orderBy: { startsAt: "asc" },
         select: eventSelect,
       }),
       prisma.planTask.findMany({
-        where: { userId: user.id },
+        where: { userId: user.id, projectId: project.id },
         orderBy: [{ dueAt: "asc" }, { createdAt: "desc" }],
         select: { id: true, title: true, description: true, status: true, dueAt: true },
       }),
     ]);
 
-    return NextResponse.json({ ok: true, events, tasks });
+    return NextResponse.json({ ok: true, project, events, tasks });
   } catch (error) {
     console.error("[CalendarEvents] GET failed:", error);
     return NextResponse.json({ ok: false, error: "Unable to load your calendar." }, { status: 500 });
@@ -53,13 +55,14 @@ export async function POST(request: Request) {
     const input = parseCalendarEvent(body);
     if (!input.ok) return NextResponse.json({ ok: false, error: input.error }, { status: 400 });
 
+    const project = await getActiveWorkspaceProject(user.id);
     if (input.data.taskId) {
-      const task = await prisma.planTask.findFirst({ where: { id: input.data.taskId, userId: user.id }, select: { id: true } });
-      if (!task) return NextResponse.json({ ok: false, error: "Choose a task from your own plan." }, { status: 400 });
+      const task = await prisma.planTask.findFirst({ where: { id: input.data.taskId, userId: user.id, projectId: project.id }, select: { id: true } });
+      if (!task) return NextResponse.json({ ok: false, error: "Choose a task from your active workspace project." }, { status: 400 });
     }
 
     const event = await prisma.calendarEvent.create({
-      data: { ...input.data, userId: user.id, reminderEmail: input.data.reminderMinutes === null ? null : user.email },
+      data: { ...input.data, userId: user.id, projectId: project.id, reminderEmail: input.data.reminderMinutes === null ? null : user.email },
       select: eventSelect,
     });
     return NextResponse.json({ ok: true, event }, { status: 201 });

@@ -7,6 +7,7 @@ Mate-E is an AI workspace and adaptive learning app built with Next.js, Clerk, P
 - Turns source material into study assets such as flashcards.
 - Tracks user progress, recovery patterns, and tutoring state over time.
 - Provides workspace-native AI help for planning, whiteboarding, and presentation prep.
+- Maintains one active workspace project per user; calendar events and scheduling proposals link to durable tasks in that project.
 - Records reasoning and governance artifacts so adaptive behavior can be reviewed before it is trusted more broadly.
 
 ## How GPT-5.6 and Codex accelerated the build
@@ -100,6 +101,8 @@ Notes:
 npx prisma migrate deploy
 npx prisma generate
 ```
+
+The active-workspace-project migration backfills one project per existing user and attaches existing plan tasks, calendar events, and proposals to it. Apply migrations before deploying code that reads calendar or planning data.
 
 If you are iterating on schema changes locally, `npx prisma migrate dev` is also fine.
 

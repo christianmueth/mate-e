@@ -6,6 +6,7 @@ import {
   getLatestPersistedWorkspaceContext,
   persistWorkspaceContextSnapshot,
 } from "@/lib/workspaceContextPersistence";
+import { getActiveWorkspaceProject } from "@/lib/activeWorkspaceProject";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -64,12 +65,14 @@ export async function POST(req: Request) {
       deckId: body.deckId || null,
       context,
     });
+    const project = await getActiveWorkspaceProject(user.id, saved.context);
 
     return NextResponse.json({
       ok: true,
       context: saved.context,
       savedAt: saved.savedAt,
       reused: saved.reused,
+      project,
     });
   } catch (error) {
     console.error("[WorkspaceContext] POST failed:", error);

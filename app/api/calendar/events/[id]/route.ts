@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { parseCalendarEvent } from "@/lib/calendarEventInput";
+import { getActiveWorkspaceProject } from "@/lib/activeWorkspaceProject";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,14 +15,15 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const body = await request.json() as Record<string, unknown>;
     const input = parseCalendarEvent(body);
     if (!input.ok) return NextResponse.json({ ok: false, error: input.error }, { status: 400 });
+    const project = await getActiveWorkspaceProject(user);
 
     if (input.data.taskId) {
-      const task = await prisma.planTask.findFirst({ where: { id: input.data.taskId, userId: user }, select: { id: true } });
-      if (!task) return NextResponse.json({ ok: false, error: "Choose a task from your own plan." }, { status: 400 });
+      const task = await prisma.planTask.findFirst({ where: { id: input.data.taskId, userId: user, projectId: project.id }, select: { id: true } });
+      if (!task) return NextResponse.json({ ok: false, error: "Choose a task from your active workspace project." }, { status: 400 });
     }
 
     const result = await prisma.calendarEvent.updateMany({
-      where: { id, userId: user },
+      where: { id, userId: user, projectId: project.id },
       data: { ...input.data, reminderSentAt: null },
     });
     if (!result.count) return NextResponse.json({ ok: false, error: "Calendar event not found." }, { status: 404 });
