@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import CalendarPlanningAssistant from "@/components/CalendarPlanningAssistant";
 
 type CalendarEvent = {
   id: string;
@@ -60,6 +61,7 @@ export default function WorkspaceCalendarFoundation() {
   const [anchorDate, setAnchorDate] = useState(() => startOfDay(new Date()));
   const [form, setForm] = useState<EventForm>(EMPTY_FORM);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [draggedEvent, setDraggedEvent] = useState<CalendarEvent | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -176,6 +178,34 @@ export default function WorkspaceCalendarFoundation() {
     }
   }
 
+  async function moveEvent(event: CalendarEvent, nextDate: string) {
+      const start = new Date(event.startsAt);
+      const end = new Date(event.endsAt);
+      try {
+        const response = await fetch(`/api/calendar/events/${event.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: event.title,
+            description: event.description,
+            startsAt: toLocalDateTime(nextDate, toTimeInput(start)),
+            endsAt: toLocalDateTime(nextDate, toTimeInput(end)),
+            timezone: event.timezone,
+            recurrence: event.recurrence,
+            recurrenceUntil: event.recurrenceUntil,
+            reminderMinutes: event.reminderMinutes,
+            taskId: event.taskId,
+          }),
+        });
+        const data = await response.json() as { ok?: boolean; error?: string };
+        if (!response.ok || !data.ok) throw new Error(data.error || "Unable to move the event.");
+        await loadCalendar();
+        toast.success("Event moved.");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Unable to move the event.");
+    }
+  }
+
   return (
     <div className="space-y-5">
       <section className="rounded-[2rem] border border-cyan-200 bg-cyan-50/60 p-5 shadow-sm">
@@ -211,12 +241,12 @@ export default function WorkspaceCalendarFoundation() {
               const dateKey = toDateInput(date);
               const dayEvents = visibleEvents.filter((event) => event.date === dateKey);
               return (
-                <button key={dateKey} type="button" onClick={() => startNewEvent(dateKey)} className={view === "month" ? "min-h-24 rounded-xl border border-slate-200 bg-slate-50 p-2 text-left hover:border-cyan-400 hover:bg-cyan-50" : "min-h-32 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-left hover:border-cyan-400 hover:bg-cyan-50"}>
+                <button key={dateKey} type="button" onClick={() => startNewEvent(dateKey)} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); if (draggedEvent) void moveEvent(draggedEvent, dateKey); setDraggedEvent(null); }} className={view === "month" ? "min-h-24 rounded-xl border border-slate-200 bg-slate-50 p-2 text-left hover:border-cyan-400 hover:bg-cyan-50" : "min-h-32 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-left hover:border-cyan-400 hover:bg-cyan-50"}>
                   <span className="text-xs font-semibold text-slate-700">{formatCalendarDate(date, view)}</span>
                   <span className="mt-2 block space-y-1">
                     {dayEvents.slice(0, view === "month" ? 2 : 5).map((event) => (
-                      <span key={`${event.sourceId}-${event.date}`} onClick={(click) => { click.stopPropagation(); chooseEvent(event.source); }} className="block truncate rounded-md bg-cyan-100 px-1.5 py-1 text-xs text-cyan-950">
-                        {formatTime(event.source.startsAt)} {event.source.title}
+                      <span key={`${event.sourceId}-${event.date}`} draggable onDragStart={() => setDraggedEvent(event.source)} onDragEnd={() => setDraggedEvent(null)} onClick={(click) => { click.stopPropagation(); chooseEvent(event.source); }} className="block cursor-grab truncate rounded-md bg-cyan-100 px-1.5 py-1 text-xs text-cyan-950">
+                        {formatTime(event.source.startsAt)} {event.source.title}{event.source.task ? " · task" : ""}
                       </span>
                     ))}
                     {dayEvents.length > (view === "month" ? 2 : 5) ? <span className="block text-xs text-slate-500">+{dayEvents.length - (view === "month" ? 2 : 5)} more</span> : null}
@@ -228,11 +258,14 @@ export default function WorkspaceCalendarFoundation() {
         )}
       </section>
 
+      <CalendarPlanningAssistant tasks={tasks} onApplied={loadCalendar} />
+
       <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{selectedEvent ? "Edit event" : "New event"}</p>
             <h3 className="mt-1 text-xl font-semibold text-slate-950">{selectedEvent ? selectedEvent.title : "Add time to your calendar"}</h3>
+            {selectedEvent?.task ? <a href="#plan-tasks" className="mt-2 inline-block text-sm font-medium text-cyan-800 hover:underline">Open linked task: {selectedEvent.task.title}</a> : null}
           </div>
           {selectedEvent ? <button type="button" onClick={() => void deleteSelectedEvent()} disabled={saving} className="rounded-full border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-60">Delete</button> : null}
         </div>
@@ -253,6 +286,12 @@ export default function WorkspaceCalendarFoundation() {
           <label className="text-sm font-medium text-slate-800">Notes<textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className={`${inputClass} min-h-24`} /></label>
           <div className="flex flex-wrap gap-2"><button disabled={saving} type="submit" className="rounded-full bg-slate-950 px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60">{saving ? "Saving…" : selectedEvent ? "Save event" : "Create event"}</button>{selectedEvent ? <button type="button" onClick={() => startNewEvent(form.date)} className={secondaryButtonClass}>New event</button> : null}</div>
         </form>
+      </section>
+
+      <section id="plan-tasks" className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Mate-E plan tasks</p>
+        <h3 className="mt-1 text-xl font-semibold text-slate-950">Linked work</h3>
+        <div className="mt-4 space-y-2">{tasks.length ? tasks.map((task) => <article key={task.id} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3"><p className="font-medium text-slate-900">{task.title}</p><p className="mt-1 text-sm text-slate-600">{task.description || task.status}</p></article>) : <p className="text-sm text-slate-600">Create a linked task from an event or scheduling proposal.</p>}</div>
       </section>
     </div>
   );

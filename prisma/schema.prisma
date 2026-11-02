@@ -33,6 +33,8 @@ model User {
   calendarShares CalendarShare[]
   calendarEvents CalendarEvent[]
   planTasks     PlanTask[]
+  calendarAvailability CalendarAvailability?
+  calendarProposals CalendarProposal[]
 }
 
 model CalendarShare {
@@ -62,13 +64,46 @@ model CalendarEvent {
   reminderEmail   String?
   reminderSentAt  DateTime?
   taskId          String?
+  proposalId      String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   task            PlanTask? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  proposal        CalendarProposal? @relation(fields: [proposalId], references: [id], onDelete: SetNull)
 
   @@index([userId, startsAt])
   @@index([reminderSentAt, startsAt])
+  @@index([taskId])
+  @@index([proposalId])
+}
+
+model CalendarAvailability {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  workdays        Json
+  startMinutes    Int      @default(540)
+  endMinutes      Int      @default(1020)
+  updatedAt       DateTime @updatedAt
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model CalendarProposal {
+  id          String   @id @default(cuid())
+  userId      String
+  taskId      String?
+  title       String
+  deadline    DateTime
+  totalMinutes Int
+  items       Json
+  status      String   @default("PENDING")
+  appliedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task        PlanTask? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  events      CalendarEvent[]
+
+  @@index([userId, status, createdAt])
   @@index([taskId])
 }
 
@@ -83,6 +118,7 @@ model PlanTask {
   updatedAt   DateTime        @updatedAt
   user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   events      CalendarEvent[]
+  proposals   CalendarProposal[]
 
   @@index([userId, dueAt])
 }
