@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { parseEvent } from "@/app/api/calendar/events/route";
+import { parseCalendarEvent } from "@/lib/calendarEventInput";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +12,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (!user) return unauthorized();
     const { id } = await context.params;
     const body = await request.json() as Record<string, unknown>;
-    const input = parseEvent(body);
+    const input = parseCalendarEvent(body);
     if (!input.ok) return NextResponse.json({ ok: false, error: input.error }, { status: 400 });
 
     if (input.data.taskId) {

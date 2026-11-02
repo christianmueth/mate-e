@@ -167,12 +167,14 @@ export default function WorkspaceOperationsConsole({
   const normalizedInitialState = useMemo(() => normalizeBuildState(seededState, simpleMode), [seededState, simpleMode]);
   const [activeBuilder, setActiveBuilder] = useState<BuilderId>(normalizedInitialBuilder);
   const [state, setState] = useState<BuildState>(normalizedInitialState);
+  const [hasGenerated, setHasGenerated] = useState(Boolean(normalizedInitialState.objective.trim()));
   const [showContext, setShowContext] = useState(Boolean(normalizedInitialState.sourceMaterial.trim()));
   const activeBuilderConfig = builders.find((builder) => builder.id === activeBuilder) ?? builders[0];
 
   useEffect(() => {
     setActiveBuilder(normalizedInitialBuilder);
     setState(normalizedInitialState);
+    setHasGenerated(Boolean(normalizedInitialState.objective.trim()));
     setShowContext(Boolean(normalizedInitialState.sourceMaterial.trim()));
   }, [normalizedInitialBuilder, normalizedInitialState]);
 
@@ -185,6 +187,7 @@ export default function WorkspaceOperationsConsole({
   }, [activeBuilder, artifact, simpleMode]);
 
   function updateField<K extends keyof BuildState>(key: K, value: BuildState[K]) {
+    if (simpleMode) setHasGenerated(false);
     setState((current) => ({ ...current, [key]: value }));
   }
 
@@ -204,6 +207,7 @@ export default function WorkspaceOperationsConsole({
       sourceMaterial: current.sourceMaterial.trim() || objective,
       deliverables: current.deliverables.trim() || "Next actions and timing",
     }));
+    setHasGenerated(true);
   }
 
   const shouldShowArtifact = simpleMode ? Boolean(calendarArtifact) : artifact.ready;
@@ -387,7 +391,7 @@ export default function WorkspaceOperationsConsole({
                 : "rounded-full bg-slate-300 px-4 py-2 text-sm font-medium text-slate-600"
               }
             >
-              {simpleMode ? "Create plan" : artifact.primaryCta}
+              {simpleMode ? hasGenerated ? "Update plan" : "Create plan" : artifact.primaryCta}
             </button>
             {simpleMode ? null : (
               <button
@@ -401,6 +405,17 @@ export default function WorkspaceOperationsConsole({
               </button>
             )}
           </div>
+
+          {simpleMode && hasGenerated && artifact.kind === "execution-plan" && artifact.ready ? (
+            <section className="mt-5 rounded-2xl border border-cyan-200 bg-cyan-50/60 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-800">Generated plan</p>
+              <h3 className="mt-2 text-lg font-semibold text-slate-950">{artifact.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-700">{artifact.summary}</p>
+              <div className="mt-3 space-y-2">
+                {artifact.criticalPath.slice(0, 3).map((item) => <p key={item} className="text-sm text-slate-700">• {item}</p>)}
+              </div>
+            </section>
+          ) : null}
         </div>
       </div>
 

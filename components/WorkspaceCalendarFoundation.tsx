@@ -186,6 +186,7 @@ export default function WorkspaceCalendarFoundation() {
             <p className="mt-1 text-sm text-slate-700">Email reminders are sent to your signed-in account.</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => exportCalendar(events)} className={secondaryButtonClass}>Export .ics</button>
             {(["day", "week", "month"] as CalendarView[]).map((option) => (
               <button key={option} type="button" onClick={() => setView(option)} className={view === option ? activeButtonClass : secondaryButtonClass}>
                 {option[0].toUpperCase() + option.slice(1)}
@@ -333,4 +334,39 @@ function addDays(date: Date, days: number) {
   const next = new Date(date);
   next.setDate(next.getDate() + days);
   return next;
+}
+
+function exportCalendar(events: CalendarEvent[]) {
+  const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Mate-E//Calendar//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH"];
+  for (const event of events) {
+    lines.push("BEGIN:VEVENT");
+    lines.push(`UID:${event.id}@mate-e`);
+    lines.push(`DTSTAMP:${formatIcsDate(new Date())}`);
+    lines.push(`DTSTART:${formatIcsDate(new Date(event.startsAt))}`);
+    lines.push(`DTEND:${formatIcsDate(new Date(event.endsAt))}`);
+    lines.push(`SUMMARY:${escapeIcs(event.title)}`);
+    if (event.description) lines.push(`DESCRIPTION:${escapeIcs(event.description)}`);
+    if (event.recurrence !== "NONE") {
+      const rule = `FREQ=${event.recurrence}${event.recurrenceUntil ? `;UNTIL=${formatIcsDate(new Date(event.recurrenceUntil))}` : ""}`;
+      lines.push(`RRULE:${rule}`);
+    }
+    lines.push("END:VEVENT");
+  }
+  lines.push("END:VCALENDAR");
+  const blob = new Blob([`${lines.join("\r\n")}\r\n`], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "mate-e-calendar.ics";
+  anchor.click();
+  URL.revokeObjectURL(url);
+  toast.success("Calendar exported.");
+}
+
+function formatIcsDate(value: Date) {
+  return value.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+}
+
+function escapeIcs(value: string) {
+  return value.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/,/g, "\\,").replace(/;/g, "\\;");
 }
