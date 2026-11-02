@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import WorkspacePlanCalendar from "@/components/WorkspacePlanCalendar";
+import WorkspaceCalendarFoundation from "@/components/WorkspaceCalendarFoundation";
 
 type BuilderId = "execution-plan" | "sprint-builder" | "risk-scan" | "task-extractor";
 type FeedTone = "risk" | "attention" | "stable";
@@ -406,7 +407,7 @@ export default function WorkspaceOperationsConsole({
       {shouldShowArtifact
         ? simpleMode
           ? calendarArtifact
-            ? <div className="order-1"><WorkspacePlanCalendar artifact={calendarArtifact} compact /></div>
+            ? <div className="order-1"><WorkspaceCalendarFoundation /></div>
             : null
           : <BuilderSurface artifact={artifact as Exclude<BuilderArtifact, EmptyArtifact>} compact={false} />
         : null}

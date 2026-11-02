@@ -4,5 +4,11 @@
       "memory": 3008,
       "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/calendar-reminders",
+      "schedule": "*/5 * * * *"
+    }
+  ]
 }

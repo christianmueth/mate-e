@@ -81,6 +81,9 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 INTERNAL_OPERATOR_CLERK_USER_IDS=user_123,user_456
 TUTORING_ADAPTIVE_RERANK_SHADOW=1
 TUTORING_ADAPTIVE_RERANK_ENABLED=0
+RESEND_API_KEY=re_...
+RESEND_FROM_EMAIL=Mate-E <reminders@example.com>
+CRON_SECRET=use-a-long-random-secret
 ```
 
 Notes:
@@ -88,6 +91,8 @@ Notes:
 - The app shell can boot without Clerk, but signed-in workspace flows require valid Clerk keys.
 - Flashcards, tutoring, whiteboard assist, and presentation planning rely on AI credentials.
 - Stripe variables are only needed if you want to exercise billing locally.
+- Calendar email reminders require a verified Resend sender (`RESEND_FROM_EMAIL`) and `RESEND_API_KEY`.
+- In production, Vercel Cron calls `/api/cron/calendar-reminders` every five minutes and authenticates with `CRON_SECRET`.
 
 ### 3. Set up the database
 
@@ -209,4 +214,5 @@ This writes a dated bundle under `governance_reports/` with exports, summaries, 
 - Run `npm run build` before deployment.
 - Apply Prisma migrations in the target environment.
 - Configure Clerk, database, AI, and Stripe environment variables before exercising protected or premium flows.
+- Configure `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `CRON_SECRET` before enabling calendar email reminders.
 - Keep operator-only governance access restricted through `INTERNAL_OPERATOR_CLERK_USER_IDS`.
